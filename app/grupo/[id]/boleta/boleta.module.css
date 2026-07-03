@@ -1,0 +1,143 @@
+.tableWrap {
+  margin-top: 22px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-rest);
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+}
+
+.table thead th {
+  background: var(--bg-subtle);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+  padding: 13px 8px;
+  border-bottom: 1px solid var(--border-3);
+  text-align: center;
+}
+.nameHead {
+  width: 212px;
+  text-align: left !important;
+  padding-left: 20px !important;
+}
+.subjHead {
+  width: 78px;
+}
+.avgHead {
+  width: 78px;
+  background: var(--bg-subtle-2) !important;
+}
+
+.row {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.row:hover {
+  background: #fcfbf7;
+}
+
+.nameCell {
+  padding: 11px 12px 11px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--border-3);
+  border-left: 3px solid transparent;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.nameCell[data-risk="true"] {
+  border-left: 3px solid var(--risk);
+}
+.riskDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--risk);
+  flex: none;
+}
+.studentName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gradeCell {
+  position: relative;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--slate);
+  padding: 11px 8px;
+  border-bottom: 1px solid var(--border-3);
+}
+.gradeCell[data-failed="true"] {
+  color: var(--risk);
+  font-weight: 700;
+}
+.editDot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--info);
+}
+
+.avgCell {
+  text-align: center;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--ink);
+  padding: 11px 8px;
+  background: var(--bg-subtle-2);
+  border-bottom: 1px solid var(--border-3);
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-top: 16px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.legendItem {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.legendFail {
+  color: var(--risk);
+  font-weight: 700;
+}
+.legendEdit {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--info);
+}
+.groupPill {
+  margin-left: auto;
+  padding: 6px 13px;
+  border-radius: var(--r-pill);
+  background: var(--bg-subtle-2);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.groupPill strong {
+  color: var(--ink);
+  font-weight: 800;
+}

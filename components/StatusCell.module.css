@@ -1,0 +1,51 @@
+.chip {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-chip);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  transition: transform 0.1s, filter 0.12s;
+}
+.chip:hover {
+  filter: brightness(0.97);
+  transform: translateY(-1px);
+}
+.chip:active {
+  transform: translateY(0);
+}
+
+.chip[data-status="complete"] {
+  background: var(--cell-ok-bg);
+  color: var(--cell-ok-fg);
+}
+.chip[data-status="incomplete"] {
+  background: var(--cell-warn-bg);
+  color: var(--cell-warn-fg);
+}
+.chip[data-status="missing"] {
+  background: var(--cell-risk-bg);
+  color: var(--cell-risk-fg);
+}
+
+.note {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(216, 209, 193, 0.55);
+  box-shadow: 0 0 0 2px var(--bg-card);
+  transition: background 0.12s, transform 0.12s;
+}
+.note:hover {
+  transform: scale(1.25);
+}
+.note[data-has="true"] {
+  background: var(--info);
+}

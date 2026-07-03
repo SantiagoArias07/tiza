@@ -1,0 +1,2 @@
+# The backend lives in server/ and is deployed to Render, not Vercel.
+server

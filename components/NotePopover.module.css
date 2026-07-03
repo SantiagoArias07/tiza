@@ -1,0 +1,74 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+}
+
+.popover {
+  position: fixed;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  box-shadow: var(--sh-popover);
+  padding: 16px;
+}
+
+.title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.subtitle {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.textarea {
+  width: 100%;
+  margin-top: 12px;
+  min-height: 80px;
+  resize: vertical;
+  padding: 10px 11px;
+  border: 1px solid var(--border-3);
+  border-radius: 9px;
+  background: var(--bg-subtle);
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.45;
+  transition: border-color 0.12s, background 0.12s;
+}
+.textarea:focus {
+  border-color: #41607b;
+  background: var(--bg-card);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+.cancel {
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  border-radius: 8px;
+}
+.cancel:hover {
+  background: var(--bg-subtle-2);
+}
+.save {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--primary);
+  border-radius: 9px;
+  transition: background 0.14s;
+}
+.save:hover {
+  background: var(--primary-hover);
+}
