@@ -15,55 +15,119 @@
   font-weight: 700;
   color: var(--ink);
   margin-bottom: 16px;
-}
-
-/* Chips */
-.chips {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   gap: 9px;
 }
-.chip {
+.count {
+  padding: 2px 9px;
+  border-radius: var(--r-pill);
+  background: var(--bg-subtle-2);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--slate);
+}
+
+/* Group name */
+.groupNameInput {
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid var(--border-3);
+  border-radius: 10px;
+  background: var(--bg-subtle);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  transition: border-color 0.12s, background 0.12s;
+}
+.groupNameInput:focus {
+  border-color: #41607b;
+  background: var(--bg-card);
+}
+
+/* Students */
+.addRow {
+  display: flex;
+  gap: 9px;
+  margin-bottom: 16px;
+}
+.addInput {
+  flex: 1;
+  padding: 10px 13px;
+  border: 1px solid var(--border-3);
+  border-radius: 10px;
+  background: var(--bg-subtle);
+  font-size: 14px;
+  color: var(--ink-2);
+  transition: border-color 0.12s, background 0.12s;
+}
+.addInput:focus {
+  border-color: #41607b;
+  background: var(--bg-card);
+}
+.addBtn {
   display: inline-flex;
   align-items: center;
+  gap: 6px;
+  padding: 10px 15px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  border-radius: 10px;
+  white-space: nowrap;
+  transition: background 0.14s;
+}
+.addBtn:hover {
+  background: var(--primary-hover);
+}
+.addBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.noStudents {
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.students {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.studentRow {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  padding: 8px 8px 8px 13px;
-  background: var(--bg-subtle);
-  border: 1px solid var(--border-3);
+}
+.studentInput {
+  flex: 1;
+  padding: 9px 12px;
+  border: 1px solid transparent;
   border-radius: 9px;
-  font-size: 13px;
+  background: var(--bg-subtle);
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--ink-2);
+  transition: border-color 0.12s, background 0.12s;
 }
-.chipX {
-  width: 20px;
-  height: 20px;
-  border-radius: 6px;
+.studentInput:focus {
+  border-color: #41607b;
+  background: var(--bg-card);
+}
+.removeBtn {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--muted-2);
   transition: background 0.12s, color 0.12s;
 }
-.chipX:hover {
+.removeBtn:hover {
   background: var(--cell-risk-bg);
   color: var(--risk);
-}
-.addChip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 13px;
-  border: 1px dashed #d8d0bf;
-  border-radius: 9px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--muted);
-  transition: border-color 0.12s, color 0.12s;
-}
-.addChip:hover {
-  border-color: var(--primary);
-  color: var(--primary);
 }
 
 /* Criteria */
@@ -189,4 +253,50 @@
   font-weight: 600;
   color: var(--muted);
   margin-left: 4px;
+}
+
+/* Danger zone */
+.danger {
+  border-color: #e9d3ca;
+}
+.deleteBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 15px;
+  border-radius: 10px;
+  background: var(--cell-risk-bg);
+  color: var(--risk);
+  font-size: 13.5px;
+  font-weight: 700;
+  transition: filter 0.12s;
+}
+.deleteBtn:hover {
+  filter: brightness(0.96);
+}
+.confirmRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.confirmText {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.cancelBtn {
+  padding: 10px 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--muted);
+  border-radius: 10px;
+}
+.cancelBtn:hover {
+  background: var(--bg-subtle-2);
+}
+
+@media (max-width: 620px) {
+  .critRow {
+    gap: 10px;
+  }
 }

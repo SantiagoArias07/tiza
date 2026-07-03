@@ -9,229 +9,340 @@ import {
   useRef,
   useState,
 } from "react";
-import { makeData } from "./data";
-import { fetchState, saveState } from "./api";
+import { usePathname } from "next/navigation";
+import { useAuth } from "./auth";
+import * as api from "./api";
 import type {
   Activity,
   AttStatus,
   CellStatus,
-  GroupData,
-  PersistedState,
+  GroupDoc,
+  GroupMeta,
+  GroupState,
 } from "./types";
 
 const CYCLE: CellStatus[] = ["complete", "incomplete", "missing"];
-const LS_KEY = "tiza:state";
 
-function defaultState(materias: string[]): PersistedState {
-  return {
-    edits: {},
-    notes: {},
-    attendance: {},
-    privNotes: {},
-    crit: [40, 20, 40],
-    umbral: 3,
-    materias,
-    extraActivities: {},
-  };
-}
-
-function mergeState(
-  base: PersistedState,
-  incoming: Partial<PersistedState> | null
-): PersistedState {
-  if (!incoming) return base;
-  return {
-    edits: incoming.edits ?? base.edits,
-    notes: incoming.notes ?? base.notes,
-    attendance: incoming.attendance ?? base.attendance,
-    privNotes: incoming.privNotes ?? base.privNotes,
-    crit: incoming.crit?.length ? incoming.crit : base.crit,
-    umbral: typeof incoming.umbral === "number" ? incoming.umbral : base.umbral,
-    materias: incoming.materias?.length ? incoming.materias : base.materias,
-    extraActivities: incoming.extraActivities ?? base.extraActivities,
-  };
-}
-
-export type SyncStatus = "loading" | "online" | "offline";
-
-interface StoreValue {
-  data: GroupData;
-  state: PersistedState;
-  cells: Record<string, CellStatus>;
-  cycleCell: (key: string) => void;
-  notes: Record<string, string>;
-  setNote: (key: string, text: string) => void;
-  attendance: Record<string, AttStatus>;
-  setAtt: (key: string, status: AttStatus) => void;
-  privNotes: Record<string, string>;
-  setPrivNote: (studentId: number, text: string) => void;
-  crit: number[];
-  setCrit: (next: number[]) => void;
-  umbral: number;
-  setUmbral: (n: number) => void;
-  materias: string[];
-  setMaterias: (next: string[]) => void;
-  extraActivities: Record<string, Activity[]>;
-  addActivity: (subjectSlug: string, rubroIdx: number, activity: Activity) => void;
-  sync: SyncStatus;
-  resetAll: () => void;
-}
-
-const StoreContext = createContext<StoreValue | null>(null);
+export type SyncStatus = "idle" | "saving" | "online" | "offline";
 
 export function extraKey(subjectSlug: string, rubroIdx: number) {
   return `${subjectSlug}-${rubroIdx}`;
 }
 
+function activeIdFromPath(pathname: string | null): string | null {
+  if (!pathname) return null;
+  const seg = pathname.split("/").filter(Boolean);
+  return seg[0] === "grupo" && seg[1] ? seg[1] : null;
+}
+
+interface StoreValue {
+  groups: GroupMeta[];
+  groupsLoading: boolean;
+  refreshGroups: () => Promise<void>;
+  createGroup: (input: {
+    label: string;
+    gradeLevel?: string;
+    cycle?: string;
+    trimester?: string;
+  }) => Promise<GroupDoc>;
+  deleteGroup: (id: string) => Promise<void>;
+
+  activeId: string | null;
+  activeGroup: GroupDoc | null;
+  groupLoading: boolean;
+  sync: SyncStatus;
+
+  // Active-group mutators
+  cycleCell: (key: string) => void;
+  setNote: (key: string, text: string) => void;
+  setAtt: (key: string, status: AttStatus) => void;
+  setPrivNote: (studentId: number, text: string) => void;
+  setCrit: (next: number[]) => void;
+  setUmbral: (n: number) => void;
+  addActivity: (subjectSlug: string, rubroIdx: number, activity: Activity) => void;
+  addStudent: (name: string) => void;
+  removeStudent: (studentId: number) => void;
+  renameStudent: (studentId: number, name: string) => void;
+  renameGroup: (label: string) => void;
+}
+
+const StoreContext = createContext<StoreValue | null>(null);
+
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [data] = useState<GroupData>(() => makeData(99));
-  const initial = useMemo(
-    () => defaultState(data.subjects.map((s) => s.name)),
-    [data.subjects]
-  );
+  const { user } = useAuth();
+  const pathname = usePathname();
+  const activeId = activeIdFromPath(pathname);
 
-  const [state, setState] = useState<PersistedState>(initial);
-  const [sync, setSync] = useState<SyncStatus>("loading");
-  const hydrated = useRef(false);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [groups, setGroups] = useState<GroupMeta[]>([]);
+  const [groupsLoading, setGroupsLoading] = useState(false);
+  const [docs, setDocs] = useState<Record<string, GroupDoc>>({});
+  const [groupLoading, setGroupLoading] = useState(false);
+  const [sync, setSync] = useState<SyncStatus>("idle");
 
-  // ---- Hydrate: backend first, localStorage fallback --------------------
+  const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  // ---- Load group list when the user changes ----------------------------
+  const refreshGroups = useCallback(async () => {
+    if (!user) {
+      setGroups([]);
+      return;
+    }
+    setGroupsLoading(true);
+    try {
+      setGroups(await api.listGroups());
+    } catch {
+      setGroups([]);
+    } finally {
+      setGroupsLoading(false);
+    }
+  }, [user]);
+
   useEffect(() => {
+    if (user) refreshGroups();
+    else {
+      setGroups([]);
+      setDocs({});
+    }
+  }, [user, refreshGroups]);
+
+  // ---- Load the active group doc ----------------------------------------
+  useEffect(() => {
+    if (!user || !activeId || docs[activeId]) return;
     let cancelled = false;
+    setGroupLoading(true);
     (async () => {
-      // Instant offline paint from cache.
-      let cached: Partial<PersistedState> | null = null;
       try {
-        const raw = window.localStorage.getItem(LS_KEY);
-        if (raw) cached = JSON.parse(raw);
+        const doc = await api.fetchGroup(activeId);
+        if (!cancelled) setDocs((p) => ({ ...p, [activeId]: doc }));
       } catch {
-        /* ignore */
+        /* not found / offline */
+      } finally {
+        if (!cancelled) setGroupLoading(false);
       }
-
-      const server = await fetchState(data.id);
-      if (cancelled) return;
-
-      if (server) {
-        setState(mergeState(initial, { ...cached, ...server }));
-        setSync("online");
-      } else {
-        setState(mergeState(initial, cached));
-        setSync("offline");
-      }
-      hydrated.current = true;
     })();
     return () => {
       cancelled = true;
     };
-  }, [data.id, initial]);
+  }, [user, activeId, docs]);
 
-  // ---- Persist: localStorage immediately + debounced backend PUT --------
-  useEffect(() => {
-    if (!hydrated.current) return;
-    try {
-      window.localStorage.setItem(LS_KEY, JSON.stringify(state));
-    } catch {
-      /* ignore quota */
-    }
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async () => {
-      const ok = await saveState(data.id, state);
-      setSync(ok ? "online" : "offline");
+  const activeGroup = activeId ? docs[activeId] ?? null : null;
+
+  // ---- Persist a doc (debounced) ----------------------------------------
+  const scheduleSave = useCallback((doc: GroupDoc) => {
+    setSync("saving");
+    if (saveTimers.current[doc.id]) clearTimeout(saveTimers.current[doc.id]);
+    saveTimers.current[doc.id] = setTimeout(async () => {
+      try {
+        window.localStorage.setItem(`tiza:group:${doc.id}`, JSON.stringify(doc));
+      } catch {
+        /* ignore quota */
+      }
+      const saved = await api
+        .saveGroup(doc)
+        .then(() => true)
+        .catch(() => false);
+      setSync(saved ? "online" : "offline");
     }, 600);
-  }, [state, data.id]);
+  }, []);
 
-  // ---- Mutators ---------------------------------------------------------
-  const cycleCell = useCallback(
-    (key: string) => {
-      setState((prev) => {
-        const current = prev.edits[key] ?? data.cellStatus[key] ?? "complete";
-        const next = CYCLE[(CYCLE.indexOf(current) + 1) % CYCLE.length];
-        return { ...prev, edits: { ...prev.edits, [key]: next } };
+  const updateActive = useCallback(
+    (fn: (doc: GroupDoc) => GroupDoc) => {
+      if (!activeId) return;
+      setDocs((prev) => {
+        const current = prev[activeId];
+        if (!current) return prev;
+        const next = fn(current);
+        scheduleSave(next);
+        return { ...prev, [activeId]: next };
       });
     },
-    [data.cellStatus]
+    [activeId, scheduleSave]
   );
 
-  const setNote = useCallback((key: string, text: string) => {
-    setState((prev) => {
-      const notes = { ...prev.notes };
-      if (text.trim()) notes[key] = text;
-      else delete notes[key];
-      return { ...prev, notes };
-    });
-  }, []);
+  const patchState = useCallback(
+    (fn: (s: GroupState) => GroupState) =>
+      updateActive((doc) => ({ ...doc, state: fn(doc.state) })),
+    [updateActive]
+  );
 
-  const setAtt = useCallback((key: string, status: AttStatus) => {
-    setState((prev) => ({
-      ...prev,
-      attendance: { ...prev.attendance, [key]: status },
-    }));
-  }, []);
+  // ---- Group CRUD -------------------------------------------------------
+  const createGroup = useCallback(
+    async (input: {
+      label: string;
+      gradeLevel?: string;
+      cycle?: string;
+      trimester?: string;
+    }) => {
+      const doc = await api.createGroup(input);
+      setDocs((p) => ({ ...p, [doc.id]: doc }));
+      await refreshGroups();
+      return doc;
+    },
+    [refreshGroups]
+  );
 
-  const setPrivNote = useCallback((studentId: number, text: string) => {
-    setState((prev) => ({
-      ...prev,
-      privNotes: { ...prev.privNotes, [studentId]: text },
-    }));
-  }, []);
-
-  const setCrit = useCallback((next: number[]) => {
-    setState((prev) => ({ ...prev, crit: next }));
-  }, []);
-
-  const setUmbral = useCallback((n: number) => {
-    setState((prev) => ({ ...prev, umbral: n }));
-  }, []);
-
-  const setMaterias = useCallback((next: string[]) => {
-    setState((prev) => ({ ...prev, materias: next }));
-  }, []);
-
-  const addActivity = useCallback(
-    (subjectSlug: string, rubroIdx: number, activity: Activity) => {
-      const key = extraKey(subjectSlug, rubroIdx);
-      setState((prev) => ({
-        ...prev,
-        extraActivities: {
-          ...prev.extraActivities,
-          [key]: [...(prev.extraActivities[key] ?? []), activity],
-        },
-      }));
+  const deleteGroup = useCallback(
+    async (id: string) => {
+      await api.deleteGroup(id);
+      setDocs((p) => {
+        const next = { ...p };
+        delete next[id];
+        return next;
+      });
+      setGroups((g) => g.filter((x) => x.id !== id));
     },
     []
   );
 
-  const resetAll = useCallback(() => {
-    setState(initial);
-  }, [initial]);
-
-  const cells = useMemo(
-    () => ({ ...data.cellStatus, ...state.edits }),
-    [data.cellStatus, state.edits]
+  // ---- Active-group mutators -------------------------------------------
+  const cycleCell = useCallback(
+    (key: string) =>
+      patchState((s) => {
+        const current = s.cells[key] ?? "complete";
+        const next = CYCLE[(CYCLE.indexOf(current) + 1) % CYCLE.length];
+        return { ...s, cells: { ...s.cells, [key]: next } };
+      }),
+    [patchState]
   );
 
-  const value: StoreValue = {
-    data,
-    state,
-    cells,
-    cycleCell,
-    notes: state.notes,
-    setNote,
-    attendance: state.attendance,
-    setAtt,
-    privNotes: state.privNotes,
-    setPrivNote,
-    crit: state.crit,
-    setCrit,
-    umbral: state.umbral,
-    setUmbral,
-    materias: state.materias,
-    setMaterias,
-    extraActivities: state.extraActivities,
-    addActivity,
-    sync,
-    resetAll,
-  };
+  const setNote = useCallback(
+    (key: string, text: string) =>
+      patchState((s) => {
+        const notes = { ...s.notes };
+        if (text.trim()) notes[key] = text;
+        else delete notes[key];
+        return { ...s, notes };
+      }),
+    [patchState]
+  );
+
+  const setAtt = useCallback(
+    (key: string, status: AttStatus) =>
+      patchState((s) => ({
+        ...s,
+        attendance: { ...s.attendance, [key]: status },
+      })),
+    [patchState]
+  );
+
+  const setPrivNote = useCallback(
+    (studentId: number, text: string) =>
+      patchState((s) => ({
+        ...s,
+        privNotes: { ...s.privNotes, [studentId]: text },
+      })),
+    [patchState]
+  );
+
+  const setCrit = useCallback(
+    (next: number[]) => patchState((s) => ({ ...s, crit: next })),
+    [patchState]
+  );
+
+  const setUmbral = useCallback(
+    (n: number) => patchState((s) => ({ ...s, umbral: n })),
+    [patchState]
+  );
+
+  const addActivity = useCallback(
+    (subjectSlug: string, rubroIdx: number, activity: Activity) =>
+      patchState((s) => {
+        const key = extraKey(subjectSlug, rubroIdx);
+        return {
+          ...s,
+          extraActivities: {
+            ...s.extraActivities,
+            [key]: [...(s.extraActivities[key] ?? []), activity],
+          },
+        };
+      }),
+    [patchState]
+  );
+
+  const addStudent = useCallback(
+    (name: string) =>
+      updateActive((doc) => {
+        const nextId =
+          doc.students.reduce((m, s) => Math.max(m, s.id), -1) + 1;
+        return {
+          ...doc,
+          students: [...doc.students, { id: nextId, name: name.trim() }],
+        };
+      }),
+    [updateActive]
+  );
+
+  const removeStudent = useCallback(
+    (studentId: number) =>
+      updateActive((doc) => ({
+        ...doc,
+        students: doc.students.filter((s) => s.id !== studentId),
+      })),
+    [updateActive]
+  );
+
+  const renameStudent = useCallback(
+    (studentId: number, name: string) =>
+      updateActive((doc) => ({
+        ...doc,
+        students: doc.students.map((s) =>
+          s.id === studentId ? { ...s, name } : s
+        ),
+      })),
+    [updateActive]
+  );
+
+  const renameGroup = useCallback(
+    (label: string) => updateActive((doc) => ({ ...doc, label })),
+    [updateActive]
+  );
+
+  const value = useMemo<StoreValue>(
+    () => ({
+      groups,
+      groupsLoading,
+      refreshGroups,
+      createGroup,
+      deleteGroup,
+      activeId,
+      activeGroup,
+      groupLoading,
+      sync,
+      cycleCell,
+      setNote,
+      setAtt,
+      setPrivNote,
+      setCrit,
+      setUmbral,
+      addActivity,
+      addStudent,
+      removeStudent,
+      renameStudent,
+      renameGroup,
+    }),
+    [
+      groups,
+      groupsLoading,
+      refreshGroups,
+      createGroup,
+      deleteGroup,
+      activeId,
+      activeGroup,
+      groupLoading,
+      sync,
+      cycleCell,
+      setNote,
+      setAtt,
+      setPrivNote,
+      setCrit,
+      setUmbral,
+      addActivity,
+      addStudent,
+      removeStudent,
+      renameStudent,
+      renameGroup,
+    ]
+  );
 
   return (
     <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
@@ -242,4 +353,40 @@ export function useStore(): StoreValue {
   const ctx = useContext(StoreContext);
   if (!ctx) throw new Error("useStore must be used within StoreProvider");
   return ctx;
+}
+
+/**
+ * Convenience for group screens: guarantees an active group is loaded and
+ * exposes its data + state + the active-group mutators with non-null typing.
+ * Screens are only rendered inside the group layout gate, so activeGroup is set.
+ */
+export function useGroup() {
+  const s = useStore();
+  if (!s.activeGroup) {
+    throw new Error("useGroup used without an active group");
+  }
+  const data = s.activeGroup;
+  return {
+    data,
+    cells: data.state.cells,
+    notes: data.state.notes,
+    attendance: data.state.attendance,
+    privNotes: data.state.privNotes,
+    crit: data.state.crit,
+    umbral: data.state.umbral,
+    extraActivities: data.state.extraActivities,
+    state: data.state,
+    sync: s.sync,
+    cycleCell: s.cycleCell,
+    setNote: s.setNote,
+    setAtt: s.setAtt,
+    setPrivNote: s.setPrivNote,
+    setCrit: s.setCrit,
+    setUmbral: s.setUmbral,
+    addActivity: s.addActivity,
+    addStudent: s.addStudent,
+    removeStudent: s.removeStudent,
+    renameStudent: s.renameStudent,
+    renameGroup: s.renameGroup,
+  };
 }

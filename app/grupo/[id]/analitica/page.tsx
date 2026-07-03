@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useStore } from "@/lib/store";
+import { useGroup } from "@/lib/store";
 import {
   failedSubjects,
   fmt,
@@ -20,7 +20,7 @@ function gradeTone(v: number) {
 }
 
 export default function AnaliticaPage() {
-  const { data, cells } = useStore();
+  const { data, cells } = useGroup();
   const router = useRouter();
   const base = `/grupo/${data.id}`;
 

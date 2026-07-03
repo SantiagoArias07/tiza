@@ -1,15 +1,31 @@
 "use client";
 
-import { useStore } from "@/lib/store";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useGroup, useStore } from "@/lib/store";
 import { PageHeader } from "@/components/ui";
-import { XIcon, PlusIcon } from "@/components/icons";
+import { PlusIcon, TrashIcon } from "@/components/icons";
 import styles from "./configuracion.module.css";
 
 const RUBRO_NAMES = ["Actividades en clase", "Actividades en casa", "Examen"];
 
 export default function ConfiguracionPage() {
-  const { data, crit, setCrit, umbral, setUmbral, materias, setMaterias } =
-    useStore();
+  const {
+    data,
+    crit,
+    setCrit,
+    umbral,
+    setUmbral,
+    addStudent,
+    removeStudent,
+    renameStudent,
+    renameGroup,
+  } = useGroup();
+  const { deleteGroup } = useStore();
+  const router = useRouter();
+
+  const [newStudent, setNewStudent] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const sum = crit.reduce((a, b) => a + b, 0);
   const sumTone = sum === 100 ? "ok" : sum < 100 ? "warn" : "risk";
@@ -21,38 +37,76 @@ export default function ConfiguracionPage() {
       )
     );
 
+  function addStudentSubmit() {
+    if (!newStudent.trim()) return;
+    addStudent(newStudent);
+    setNewStudent("");
+  }
+
   return (
     <div className={styles.wrap}>
       <PageHeader
         title="Configuración del grupo"
-        subtitle={`${data.label} · ${data.cycle}`}
+        subtitle={`${data.gradeLevel} · Ciclo ${data.cycle}`}
       />
 
       <section className={styles.card}>
-        <h2 className={styles.cardTitle}>Materias del grupo</h2>
-        <div className={styles.chips}>
-          {materias.map((m) => (
-            <span key={m} className={styles.chip}>
-              {m}
-              <button
-                className={styles.chipX}
-                onClick={() => setMaterias(materias.filter((x) => x !== m))}
-                aria-label={`Quitar ${m}`}
-              >
-                <XIcon size={13} />
-              </button>
-            </span>
-          ))}
+        <h2 className={styles.cardTitle}>Nombre del grupo</h2>
+        <input
+          className={styles.groupNameInput}
+          value={data.label}
+          onChange={(e) => renameGroup(e.target.value)}
+        />
+      </section>
+
+      <section className={styles.card}>
+        <h2 className={styles.cardTitle}>
+          Alumnos <span className={styles.count}>{data.students.length}</span>
+        </h2>
+
+        <div className={styles.addRow}>
+          <input
+            className={styles.addInput}
+            value={newStudent}
+            placeholder="Nombre del alumno"
+            onChange={(e) => setNewStudent(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addStudentSubmit()}
+          />
           <button
-            className={styles.addChip}
-            onClick={() =>
-              setMaterias([...materias, `Materia ${materias.length + 1}`])
-            }
+            className={styles.addBtn}
+            onClick={addStudentSubmit}
+            disabled={!newStudent.trim()}
           >
-            <PlusIcon size={14} />
-            Agregar materia
+            <PlusIcon size={16} />
+            Agregar
           </button>
         </div>
+
+        {data.students.length === 0 ? (
+          <p className={styles.noStudents}>
+            Aún no hay alumnos. Agrega el primero arriba.
+          </p>
+        ) : (
+          <div className={styles.students}>
+            {data.students.map((s) => (
+              <div key={s.id} className={styles.studentRow}>
+                <input
+                  className={styles.studentInput}
+                  value={s.name}
+                  onChange={(e) => renameStudent(s.id, e.target.value)}
+                />
+                <button
+                  className={styles.removeBtn}
+                  onClick={() => removeStudent(s.id)}
+                  aria-label={`Quitar ${s.name}`}
+                  title="Quitar alumno"
+                >
+                  <TrashIcon size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className={styles.card}>
@@ -62,17 +116,11 @@ export default function ConfiguracionPage() {
             <div key={name} className={styles.critRow}>
               <span className={styles.critName}>{name}</span>
               <div className={styles.stepper}>
-                <button
-                  className={styles.stepBtn}
-                  onClick={() => stepCrit(i, -5)}
-                >
+                <button className={styles.stepBtn} onClick={() => stepCrit(i, -5)}>
                   −
                 </button>
                 <span className={styles.stepValue}>{crit[i] ?? 0}%</span>
-                <button
-                  className={styles.stepBtn}
-                  onClick={() => stepCrit(i, 5)}
-                >
+                <button className={styles.stepBtn} onClick={() => stepCrit(i, 5)}>
                   +
                 </button>
               </div>
@@ -118,6 +166,42 @@ export default function ConfiguracionPage() {
           </button>
           <span className={styles.umbralUnit}>faltas</span>
         </div>
+      </section>
+
+      <section className={`${styles.card} ${styles.danger}`}>
+        <h2 className={styles.cardTitle}>Eliminar grupo</h2>
+        <p className={styles.umbralNote}>
+          Se borrará el grupo con sus alumnos y calificaciones. No se puede
+          deshacer.
+        </p>
+        {confirmDelete ? (
+          <div className={styles.confirmRow}>
+            <span className={styles.confirmText}>¿Seguro?</span>
+            <button
+              className={styles.deleteBtn}
+              onClick={async () => {
+                await deleteGroup(data.id);
+                router.push("/");
+              }}
+            >
+              Sí, eliminar
+            </button>
+            <button
+              className={styles.cancelBtn}
+              onClick={() => setConfirmDelete(false)}
+            >
+              Cancelar
+            </button>
+          </div>
+        ) : (
+          <button
+            className={styles.deleteBtn}
+            onClick={() => setConfirmDelete(true)}
+          >
+            <TrashIcon size={16} />
+            Eliminar este grupo
+          </button>
+        )}
       </section>
     </div>
   );

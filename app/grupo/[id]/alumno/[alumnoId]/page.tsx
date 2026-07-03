@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { notFound, useParams } from "next/navigation";
-import { useStore } from "@/lib/store";
+import { useGroup } from "@/lib/store";
 import {
   attKey,
   attendancePct,
@@ -27,7 +27,7 @@ function schoolDaysFeb2026() {
 }
 
 export default function AlumnoPage() {
-  const { data, cells, attendance, privNotes, setPrivNote, crit } = useStore();
+  const { data, cells, attendance, privNotes, setPrivNote, crit } = useGroup();
   const params = useParams<{ alumnoId: string }>();
   const student = data.students.find((s) => String(s.id) === params.alumnoId);
   if (!student) notFound();

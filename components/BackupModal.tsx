@@ -7,7 +7,10 @@ import { DownloadIcon, FileTextIcon, XIcon } from "./icons";
 import styles from "./BackupModal.module.css";
 
 export function BackupModal({ onClose }: { onClose: () => void }) {
-  const { data, cells, state } = useStore();
+  const { activeGroup } = useStore();
+  if (!activeGroup) return null;
+  const data = activeGroup;
+  const cells = activeGroup.state.cells;
 
   return (
     <Modal width={440} onClose={onClose}>
@@ -25,7 +28,7 @@ export function BackupModal({ onClose }: { onClose: () => void }) {
         <button
           className={styles.option}
           onClick={() => {
-            downloadBackup(data, state);
+            downloadBackup(data);
             onClose();
           }}
         >
@@ -33,9 +36,9 @@ export function BackupModal({ onClose }: { onClose: () => void }) {
             <DownloadIcon size={20} />
           </span>
           <span className={styles.optText}>
-            <span className={styles.optTitle}>Respaldo completo (.tiza)</span>
+            <span className={styles.optTitle}>Respaldo completo (.json)</span>
             <span className={styles.optDesc}>
-              Todo el grupo: calificaciones, notas y asistencia.
+              Todo el grupo: alumnos, calificaciones, notas y asistencia.
             </span>
           </span>
         </button>

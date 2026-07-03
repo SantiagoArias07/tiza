@@ -177,3 +177,9 @@
   background: var(--cell-risk-bg);
   color: var(--cell-risk-fg);
 }
+
+@media (max-width: 820px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

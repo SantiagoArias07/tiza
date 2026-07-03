@@ -6,7 +6,7 @@ import {
   studentAverage,
   subjectGrade,
 } from "./calc";
-import type { AttStatus, CellStatus, GroupData, Student } from "./types";
+import type { AttStatus, CellStatus, GroupDoc, Student } from "./types";
 
 type Cells = Record<string, CellStatus>;
 
@@ -38,7 +38,7 @@ function csvCell(v: string): string {
   return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
 
-export function boletaCsv(data: GroupData, cells: Cells): string {
+export function boletaCsv(data: GroupDoc, cells: Cells): string {
   const header = [
     "Alumno",
     ...data.subjects.map((s) => s.name),
@@ -58,28 +58,26 @@ export function boletaCsv(data: GroupData, cells: Cells): string {
     .join("\n");
 }
 
-export function downloadBoletaCsv(data: GroupData, cells: Cells) {
-  const csv = "﻿" + boletaCsv(data, cells); // BOM for Excel accents
-  downloadBlob(`tiza-boleta-${data.id}.csv`, csv, "text/csv;charset=utf-8");
+function slug(s: string) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
-/* ---- Full backup (.tiza) ------------------------------------------------- */
+export function downloadBoletaCsv(data: GroupDoc, cells: Cells) {
+  const csv = "﻿" + boletaCsv(data, cells); // BOM for Excel accents
+  downloadBlob(`boleta-${slug(data.label)}.csv`, csv, "text/csv;charset=utf-8");
+}
 
-export function downloadBackup(data: GroupData, state: unknown) {
+/* ---- Full backup (.json) ------------------------------------------------- */
+
+export function downloadBackup(group: GroupDoc) {
   const payload = {
     format: "tiza-backup",
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
-    group: {
-      id: data.id,
-      label: data.label,
-      cycle: data.cycle,
-      trimester: data.trimester,
-    },
-    state,
+    group,
   };
   downloadBlob(
-    `respaldo-${data.id}-${data.cycle}.tiza`,
+    `respaldo-${slug(group.label)}.json`,
     JSON.stringify(payload, null, 2),
     "application/json"
   );
@@ -88,7 +86,7 @@ export function downloadBackup(data: GroupData, state: unknown) {
 /* ---- Student PDF --------------------------------------------------------- */
 
 export function downloadStudentPdf(
-  data: GroupData,
+  data: GroupDoc,
   student: Student,
   cells: Cells,
   attendance: Record<string, AttStatus>,

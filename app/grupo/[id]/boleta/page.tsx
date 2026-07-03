@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useStore } from "@/lib/store";
+import { useGroup } from "@/lib/store";
 import { fmt, groupAverage, subjectGrade, isAtRisk } from "@/lib/calc";
 import { PageHeader } from "@/components/ui";
 import styles from "./boleta.module.css";
@@ -13,7 +13,7 @@ const EDITED: Record<string, number> = {
 };
 
 export default function BoletaPage() {
-  const { data, cells } = useStore();
+  const { data, cells } = useGroup();
   const router = useRouter();
   const base = `/grupo/${data.id}`;
   const groupAvg = groupAverage(data, cells);

@@ -1,39 +1,98 @@
-/**
- * Mutable group state persisted by the backend. The frontend owns the static
- * demo baseline (students, subjects, seeded cells); the backend only stores
- * what the teacher changes on top of it.
- */
+export type CellStatus = "complete" | "incomplete" | "missing";
+export type AttStatus = "P" | "R" | "A";
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  school: string;
+}
+
+export interface UserRecord extends User {
+  passwordHash: string;
+  createdAt: number;
+}
+
+export interface Student {
+  id: number;
+  name: string;
+}
+
+export interface Activity {
+  name: string;
+  date: string;
+}
+
+export interface Rubro {
+  name: string;
+  pct: number;
+  activities: Activity[];
+}
+
+export interface Subject {
+  slug: string;
+  name: string;
+  abbr: string;
+  initial: string;
+  bg: string;
+  fg: string;
+  rubros: Rubro[];
+}
+
+/** Mutable per-group state (grades, notes, attendance, config). */
 export interface GroupState {
-  /** cellKey -> "complete" | "incomplete" | "missing" (overrides seed) */
-  edits: Record<string, string>;
-  /** cellKey -> note text */
+  cells: Record<string, CellStatus>;
   notes: Record<string, string>;
-  /** `${day}-${studentId}` -> "P" | "R" | "A" */
-  attendance: Record<string, string>;
-  /** studentId -> private note text */
+  attendance: Record<string, AttStatus>;
   privNotes: Record<string, string>;
-  /** weight % per rubro */
   crit: number[];
-  /** absence alert threshold */
   umbral: number;
-  /** subject names shown in Configuración */
-  materias: string[];
-  /** rubroIdx -> extra activities added via "Nueva actividad" */
-  extraActivities: Record<string, { name: string; date: string }[]>;
-  /** last write timestamp (ms) */
+  extraActivities: Record<string, Activity[]>;
+}
+
+/** A full group document (students + subjects + state). */
+export interface GroupDoc {
+  id: string;
+  userId: string;
+  label: string;
+  gradeLevel: string;
+  cycle: string;
+  trimester: string;
+  students: Student[];
+  subjects: Subject[];
+  state: GroupState;
+  createdAt: number;
   updatedAt: number;
+}
+
+export interface GroupMeta {
+  id: string;
+  label: string;
+  gradeLevel: string;
+  cycle: string;
+  trimester: string;
+  studentCount: number;
 }
 
 export function emptyState(): GroupState {
   return {
-    edits: {},
+    cells: {},
     notes: {},
     attendance: {},
     privNotes: {},
     crit: [40, 20, 40],
     umbral: 3,
-    materias: [],
     extraActivities: {},
-    updatedAt: 0,
+  };
+}
+
+export function toMeta(doc: GroupDoc): GroupMeta {
+  return {
+    id: doc.id,
+    label: doc.label,
+    gradeLevel: doc.gradeLevel,
+    cycle: doc.cycle,
+    trimester: doc.trimester,
+    studentCount: doc.students.length,
   };
 }

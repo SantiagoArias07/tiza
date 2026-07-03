@@ -4,11 +4,13 @@ Bitácora digital para maestros de primaria: alumnos, calificaciones por
 actividad (palomitas), asistencia y analítica. Tono premium y cálido.
 
 - **Frontend:** Next.js 14 (App Router) + TypeScript → se despliega en **Vercel**
-- **Backend:** Express + PostgreSQL → se despliega en **Render**
-- **Datos:** el frontend trae la base de demo (24 alumnos, 8 materias); el
-  backend guarda lo que el maestro cambia (calificaciones, notas, asistencia,
-  criterios, actividades nuevas). Si el backend no responde, todo sigue
-  funcionando y se guarda en el navegador (localStorage).
+- **Backend:** Express + PostgreSQL + autenticación (bcrypt + JWT) → se
+  despliega en **Render**
+- **Cuentas:** cada maestro se registra con correo y contraseña y ve solo sus
+  grupos. Al registrarse recibe un grupo demo (3° B con 24 alumnos) para
+  explorar, y puede crear más grupos, agregar/quitar alumnos, etc.
+- **Datos:** el backend guarda todo (grupos, alumnos, calificaciones, notas,
+  asistencia, criterios). Los cambios se sincronizan automáticamente.
 
 ---
 
@@ -54,15 +56,21 @@ git push
 
 1. Entra a [render.com](https://render.com) → **New → Blueprint**.
 2. Conecta este repositorio. Render detecta el archivo `render.yaml` y crea
-   dos cosas: el servicio web `tiza-server` y la base de datos `tiza-db`
-   (Postgres, plan gratis). Dale **Apply**.
+   tres cosas: el servicio web `tiza-server` (con `rootDir: server`), la base
+   de datos `tiza-db` (Postgres, plan gratis) y un `JWT_SECRET` aleatorio.
+   Dale **Apply**.
 3. Cuando termine, copia la URL del servicio, por ejemplo
    `https://tiza-server.onrender.com`. Verifica que funciona abriendo
    `https://tiza-server.onrender.com/api/health` (debe responder
    `{"ok":true,"store":"postgres"}`).
 
-> El `DATABASE_URL` se conecta solo gracias al blueprint. No tienes que copiar
-> nada a mano.
+> `DATABASE_URL` y `JWT_SECRET` se configuran solos gracias al blueprint.
+>
+> **Si creaste el servicio a mano** (sin blueprint) y el build corre
+> `next build` / falla con "Cannot find module 'express'", es porque apunta a
+> la raíz. Arréglalo en **Settings** del servicio: **Root Directory** = `server`,
+> **Build Command** = `npm install && npm run build`, **Start Command** =
+> `npm start`. Guarda y vuelve a desplegar con "Clear build cache & deploy".
 
 ### Paso 2 — Frontend en Vercel
 
@@ -89,12 +97,14 @@ datos en Render, todo sincronizado.
 
 ## Descargas
 
-- **Respaldo `.tiza`** y **CSV**: botón *Descargar respaldo* en la barra lateral.
+- **Respaldo `.json`** y **CSV**: botón *Descargar respaldo* en la barra lateral
+  (dentro de un grupo). El `.json` se abre en cualquier editor; el `.csv` en
+  Excel o Google Sheets.
 - **PDF del alumno**: botón *Generar PDF del alumno* en la ficha de cada alumno.
 
-Todas se generan en el navegador, así que funcionan aunque el backend esté
-dormido (el plan gratis de Render suspende el servicio tras inactividad; la
-primera petición después tarda ~30 s en despertar).
+Todas se generan en el navegador con extensiones estándar, así que funcionan
+aunque el backend esté dormido (el plan gratis de Render suspende el servicio
+tras inactividad; la primera petición después tarda ~30 s en despertar).
 
 ---
 
@@ -104,6 +114,7 @@ primera petición después tarda ~30 s en despertar).
 | -------- | --------------------- | ------------------------------------------ |
 | Frontend | `NEXT_PUBLIC_API_URL` | URL del backend (Render)                   |
 | Backend  | `DATABASE_URL`        | Postgres (lo pone el blueprint de Render)  |
+| Backend  | `JWT_SECRET`          | Firma de sesiones (lo genera el blueprint) |
 | Backend  | `CORS_ORIGIN`         | URL del frontend (Vercel) permitida        |
 | Backend  | `PORT`                | Puerto (lo pone Render automáticamente)    |
 

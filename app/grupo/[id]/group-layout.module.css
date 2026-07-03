@@ -1,0 +1,28 @@
+.center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 60vh;
+  text-align: center;
+}
+.title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-top: 6px;
+}
+.hint {
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.back {
+  margin-top: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--primary);
+}
+.back:hover {
+  text-decoration: underline;
+}

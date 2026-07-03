@@ -2,7 +2,7 @@ import { POINTS, cellKey } from "./data";
 import type {
   AttStatus,
   CellStatus,
-  GroupData,
+  GroupDoc,
   Student,
   Subject,
 } from "./types";
@@ -63,7 +63,7 @@ export function activityAverage(
 }
 
 export function studentAverage(
-  data: GroupData,
+  data: GroupDoc,
   studentId: number,
   cells: CellMap
 ): number {
@@ -72,7 +72,7 @@ export function studentAverage(
 }
 
 export function isAtRisk(
-  data: GroupData,
+  data: GroupDoc,
   studentId: number,
   cells: CellMap
 ): boolean {
@@ -82,7 +82,7 @@ export function isAtRisk(
 }
 
 export function failedSubjects(
-  data: GroupData,
+  data: GroupDoc,
   studentId: number,
   cells: CellMap
 ): Subject[] {
@@ -91,12 +91,12 @@ export function failedSubjects(
   );
 }
 
-export function groupAverage(data: GroupData, cells: CellMap): number {
+export function groupAverage(data: GroupDoc, cells: CellMap): number {
   const avgs = data.students.map((s) => studentAverage(data, s.id, cells));
   return avgs.reduce((a, b) => a + b, 0) / avgs.length;
 }
 
-export function riskCount(data: GroupData, cells: CellMap): number {
+export function riskCount(data: GroupDoc, cells: CellMap): number {
   return data.students.filter((s) => isAtRisk(data, s.id, cells)).length;
 }
 

@@ -3,6 +3,13 @@ export type CellStatus = "complete" | "incomplete" | "missing";
 /** Attendance status: Presente / Retardo / Ausente */
 export type AttStatus = "P" | "R" | "A";
 
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  school: string;
+}
+
 export interface Student {
   id: number;
   name: string;
@@ -22,41 +29,60 @@ export interface Rubro {
 }
 
 export interface Subject {
-  /** stable slug used in routes, e.g. "matematicas" */
+  /** stable slug used in cell keys, e.g. "matematicas" */
   slug: string;
   name: string;
-  /** abbreviated label for the boleta columns */
   abbr: string;
-  /** single-letter glyph for the subject square */
   initial: string;
   bg: string;
   fg: string;
   rubros: Rubro[];
 }
 
-export interface GroupData {
-  id: string;
-  label: string;
-  cycle: string;
-  trimester: string;
-  students: Student[];
-  subjects: Subject[];
-  /** seeded cell statuses, keyed by cellKey() */
-  cellStatus: Record<string, CellStatus>;
-}
-
-/**
- * Mutable state persisted to the backend / localStorage. The static baseline
- * (students, subjects, seeded cells) lives in the frontend; this is only what
- * the teacher changes on top of it.
- */
-export interface PersistedState {
-  edits: Record<string, CellStatus>;
+/** Mutable per-group state (grades, notes, attendance, config). */
+export interface GroupState {
+  cells: Record<string, CellStatus>;
   notes: Record<string, string>;
   attendance: Record<string, AttStatus>;
   privNotes: Record<string, string>;
   crit: number[];
   umbral: number;
-  materias: string[];
   extraActivities: Record<string, Activity[]>;
+}
+
+/** A full group document (students + subjects + state). */
+export interface GroupDoc {
+  id: string;
+  userId: string;
+  label: string;
+  gradeLevel: string;
+  cycle: string;
+  trimester: string;
+  students: Student[];
+  subjects: Subject[];
+  state: GroupState;
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Lightweight group summary for lists. */
+export interface GroupMeta {
+  id: string;
+  label: string;
+  gradeLevel: string;
+  cycle: string;
+  trimester: string;
+  studentCount: number;
+}
+
+export function emptyState(): GroupState {
+  return {
+    cells: {},
+    notes: {},
+    attendance: {},
+    privNotes: {},
+    crit: [40, 20, 40],
+    umbral: 3,
+    extraActivities: {},
+  };
 }

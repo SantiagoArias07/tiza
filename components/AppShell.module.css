@@ -193,11 +193,15 @@
   flex-direction: column;
   line-height: 1.15;
   min-width: 0;
+  flex: 1;
 }
 .userName {
   font-size: 13.5px;
   font-weight: 600;
   color: #f5f2eb;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .userSchool {
   font-size: 11px;
@@ -205,6 +209,21 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.logout {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(233, 237, 240, 0.6);
+  transition: background 0.12s, color 0.12s;
+}
+.logout:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 
 /* ---- Main ---------------------------------------------------------------- */
@@ -221,11 +240,28 @@
   flex: none;
   display: flex;
   align-items: center;
+  gap: 14px;
   justify-content: space-between;
   padding: 0 30px;
   border-bottom: 1px solid var(--border);
   background: rgba(246, 243, 235, 0.85);
   backdrop-filter: blur(6px);
+}
+.hamburger {
+  display: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  align-items: center;
+  justify-content: center;
+  color: var(--slate);
+  margin-left: -8px;
+}
+.hamburger:hover {
+  background: var(--bg-subtle-2);
+}
+.overlay {
+  display: none;
 }
 
 .breadcrumb {
@@ -271,4 +307,43 @@
   padding: 30px 34px 60px;
   max-width: 1180px;
   margin: 0 auto;
+}
+
+/* ---- Responsive (mobile drawer) ----------------------------------------- */
+@media (max-width: 860px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 0.24s ease;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.25);
+  }
+  .sidebar[data-open="true"] {
+    transform: translateX(0);
+  }
+  .overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(44, 61, 76, 0.4);
+  }
+  .hamburger {
+    display: flex;
+  }
+  .topbar {
+    padding: 0 16px;
+  }
+  .content {
+    padding: 22px 18px 60px;
+  }
+  .breadcrumb {
+    font-size: 13px;
+  }
+  .cyclePill {
+    display: none;
+  }
 }

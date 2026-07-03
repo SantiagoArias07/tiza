@@ -1,19 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/lib/auth";
 import { useStore } from "@/lib/store";
+import { Logo } from "./Logo";
 import {
   BookIcon,
   CalendarIcon,
   ChartIcon,
-  CheckIcon,
   DownloadIcon,
   FileTextIcon,
-  GridIcon,
   HomeIcon,
+  MenuIcon,
   SlidersIcon,
+  XIcon,
 } from "./icons";
 import { BackupModal } from "./BackupModal";
 import styles from "./AppShell.module.css";
@@ -27,29 +29,48 @@ const NAV = [
 ];
 
 const SYNC_LABEL: Record<string, string> = {
-  loading: "Cargando…",
+  idle: "Listo",
+  saving: "Guardando…",
   online: "Sincronizado",
   offline: "Sin conexión · local",
 };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { data, sync } = useStore();
+  const { user, logout } = useAuth();
+  const { groups, activeId, activeGroup, sync } = useStore();
   const pathname = usePathname() ?? "/";
   const [backupOpen, setBackupOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Close the mobile drawer on navigation.
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   const onDashboard = pathname === "/";
-  const base = `/grupo/${data.id}`;
+  const base = activeId ? `/grupo/${activeId}` : "";
+  const activeMeta = groups.find((g) => g.id === activeId);
+  const groupLabel = activeGroup?.label ?? activeMeta?.label ?? "Grupo";
+  const studentCount = activeGroup?.students.length ?? activeMeta?.studentCount ?? 0;
   const activeNav = NAV.find((n) => pathname.includes(`${base}/${n.key}`))?.key;
-  // "bitacora/[materia]" lives under the Bitácoras nav item.
-  const isBitacoraDetail = pathname.includes(`${base}/bitacora/`);
+  const isBitacoraDetail = base ? pathname.includes(`${base}/bitacora/`) : false;
+
+  const initials = (user?.name ?? "T")
+    .split(" ")
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase();
 
   return (
     <div className={styles.shell}>
-      <aside className={styles.sidebar}>
+      {menuOpen && (
+        <div className={styles.overlay} onClick={() => setMenuOpen(false)} />
+      )}
+
+      <aside className={styles.sidebar} data-open={menuOpen}>
         <Link href="/" className={styles.brand}>
-          <span className={styles.logo}>
-            <CheckIcon size={21} stroke="var(--accent)" strokeWidth={2.7} />
-          </span>
+          <Logo size={36} />
           <span className={styles.brandText}>
             <span className={styles.brandName}>Tiza</span>
             <span className={styles.brandSub}>Bitácora docente</span>
@@ -64,16 +85,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <span>Inicio</span>
         </Link>
 
-        {!onDashboard && (
+        {activeId && (
           <>
             <div className={styles.sectionLabel}>
               <span className={styles.dot} />
               Grupo activo
             </div>
             <Link href={`${base}/boleta`} className={styles.groupCard}>
-              <div className={styles.groupTitle}>{data.label}</div>
+              <div className={styles.groupTitle}>{groupLabel}</div>
               <div className={styles.groupSub}>
-                {data.students.length} alumnos · {data.trimester}
+                {studentCount} alumnos · {activeGroup?.trimester ?? ""}
               </div>
             </Link>
 
@@ -102,32 +123,49 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className={styles.spacer} />
 
-        <button className={styles.backup} onClick={() => setBackupOpen(true)}>
-          <DownloadIcon size={18} />
-          <span className={styles.backupText}>
-            <span className={styles.backupLabel}>Descargar respaldo</span>
-            <span className={styles.backupHint} data-sync={sync}>
-              <span className={styles.syncDot} data-sync={sync} />
-              {SYNC_LABEL[sync]}
+        {activeGroup && (
+          <button className={styles.backup} onClick={() => setBackupOpen(true)}>
+            <DownloadIcon size={18} />
+            <span className={styles.backupText}>
+              <span className={styles.backupLabel}>Descargar respaldo</span>
+              <span className={styles.backupHint}>
+                <span className={styles.syncDot} data-sync={sync} />
+                {SYNC_LABEL[sync]}
+              </span>
             </span>
-          </span>
-        </button>
+          </button>
+        )}
 
         <div className={styles.user}>
-          <div className={styles.avatar}>MB</div>
+          <div className={styles.avatar}>{initials}</div>
           <div className={styles.userText}>
-            <span className={styles.userName}>Profe Marisol</span>
-            <span className={styles.userSchool}>Esc. Prim. Benito Juárez</span>
+            <span className={styles.userName}>{user?.name}</span>
+            <span className={styles.userSchool}>{user?.school}</span>
           </div>
+          <button
+            className={styles.logout}
+            onClick={logout}
+            title="Cerrar sesión"
+            aria-label="Cerrar sesión"
+          >
+            <LogoutIcon />
+          </button>
         </div>
       </aside>
 
       <main className={styles.main}>
         <header className={styles.topbar}>
-          <Breadcrumb pathname={pathname} />
+          <button
+            className={styles.hamburger}
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label="Menú"
+          >
+            {menuOpen ? <XIcon size={20} /> : <MenuIcon size={20} />}
+          </button>
+          <Breadcrumb pathname={pathname} groupLabel={groupLabel} />
           <div className={styles.cyclePill}>
             <span className={styles.greenDot} />
-            Ciclo {data.cycle} · 2° trim.
+            {activeGroup ? `Ciclo ${activeGroup.cycle}` : "Ciclo 2025–2026"}
           </div>
         </header>
         <div className={styles.scroll}>
@@ -135,20 +173,46 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </main>
 
-      {backupOpen && <BackupModal onClose={() => setBackupOpen(false)} />}
+      {backupOpen && activeGroup && (
+        <BackupModal onClose={() => setBackupOpen(false)} />
+      )}
     </div>
   );
 }
 
-function Breadcrumb({ pathname }: { pathname: string }) {
-  const { data } = useStore();
+function LogoutIcon() {
+  return (
+    <svg
+      width={17}
+      height={17}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="M16 17l5-5-5-5M21 12H9" />
+    </svg>
+  );
+}
+
+function Breadcrumb({
+  pathname,
+  groupLabel,
+}: {
+  pathname: string;
+  groupLabel: string;
+}) {
+  const { activeGroup } = useStore();
   const parts: string[] = [];
 
   if (pathname === "/") {
     parts.push("Inicio");
   } else {
-    parts.push(data.label);
-    const seg = pathname.split("/").filter(Boolean); // ["grupo","3b",...]
+    parts.push(groupLabel);
+    const seg = pathname.split("/").filter(Boolean);
     const section = seg[2];
     const labelMap: Record<string, string> = {
       boleta: "Boleta",
@@ -160,12 +224,12 @@ function Breadcrumb({ pathname }: { pathname: string }) {
       alumno: "Alumno",
     };
     if (section) parts.push(labelMap[section] ?? section);
-    if (section === "bitacora" && seg[3]) {
-      const subj = data.subjects.find((s) => s.slug === seg[3]);
+    if (section === "bitacora" && seg[3] && activeGroup) {
+      const subj = activeGroup.subjects.find((s) => s.slug === seg[3]);
       if (subj) parts.push(subj.name);
     }
-    if (section === "alumno" && seg[3]) {
-      const st = data.students.find((s) => String(s.id) === seg[3]);
+    if (section === "alumno" && seg[3] && activeGroup) {
+      const st = activeGroup.students.find((s) => String(s.id) === seg[3]);
       if (st) parts.push(st.name.split(" ").slice(0, 2).join(" "));
     }
   }

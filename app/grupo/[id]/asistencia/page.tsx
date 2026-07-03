@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useStore } from "@/lib/store";
+import { useGroup } from "@/lib/store";
 import { attKey, attendancePct } from "@/lib/calc";
 import type { AttStatus } from "@/lib/types";
 import { PageHeader } from "@/components/ui";
@@ -29,7 +29,7 @@ const SEGMENTS: { key: AttStatus; glyph: string; tone: string }[] = [
 ];
 
 export default function AsistenciaPage() {
-  const { data, attendance, setAtt, umbral } = useStore();
+  const { data, attendance, setAtt, umbral } = useGroup();
   const [selected, setSelected] = useState(9);
 
   const schoolDays = useMemo(() => {

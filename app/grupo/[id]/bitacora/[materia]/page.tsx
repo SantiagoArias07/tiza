@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
-import { extraKey, useStore } from "@/lib/store";
+import { extraKey, useGroup } from "@/lib/store";
 import { cellKey } from "@/lib/data";
 import { activityAverage, fmt, rubroScore } from "@/lib/calc";
 import type { Subject } from "@/lib/types";
@@ -22,7 +22,7 @@ interface PopState {
 
 export default function MateriaPage() {
   const { data, cells, notes, setNote, cycleCell, crit, extraActivities, addActivity } =
-    useStore();
+    useGroup();
   const params = useParams<{ materia: string }>();
   const baseSubject = data.subjects.find((s) => s.slug === params.materia);
   if (!baseSubject) notFound();

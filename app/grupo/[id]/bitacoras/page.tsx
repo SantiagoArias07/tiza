@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useStore } from "@/lib/store";
+import { useGroup } from "@/lib/store";
 import { fmt, subjectAverage } from "@/lib/calc";
 import { PageHeader } from "@/components/ui";
 import { ChevronIcon } from "@/components/icons";
 import styles from "./bitacoras.module.css";
 
 export default function BitacorasPage() {
-  const { data, cells } = useStore();
+  const { data, cells } = useGroup();
   const base = `/grupo/${data.id}`;
 
   return (
