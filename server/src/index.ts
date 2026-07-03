@@ -21,6 +21,7 @@ function toMeta(doc: GroupDoc): GroupMeta {
     gradeLevel: doc.gradeLevel,
     cycle: doc.cycle,
     trimester: doc.trimester,
+    periodCount: doc.periodCount ?? 3,
     studentCount: doc.students.length,
     avg: m.avg,
     risk: m.risk,
@@ -159,6 +160,10 @@ app.put("/api/groups/:id", requireAuth, async (req: AuthedRequest, res) => {
     gradeLevel: body.gradeLevel ?? existing.gradeLevel,
     cycle: body.cycle ?? existing.cycle,
     trimester: body.trimester ?? existing.trimester,
+    periodCount:
+      typeof body.periodCount === "number"
+        ? body.periodCount
+        : existing.periodCount ?? 3,
     students: Array.isArray(body.students) ? body.students : existing.students,
     subjects: Array.isArray(body.subjects) ? body.subjects : existing.subjects,
     state: body.state ? { ...emptyState(), ...body.state } : existing.state,

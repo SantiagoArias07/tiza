@@ -12,6 +12,7 @@ import {
 import { usePathname } from "next/navigation";
 import { useAuth } from "./auth";
 import * as api from "./api";
+import { extraKey } from "./data";
 import type {
   Activity,
   AttStatus,
@@ -24,10 +25,6 @@ import type {
 const CYCLE: CellStatus[] = ["complete", "incomplete", "missing"];
 
 export type SyncStatus = "idle" | "saving" | "online" | "offline";
-
-export function extraKey(subjectSlug: string, rubroIdx: number) {
-  return `${subjectSlug}-${rubroIdx}`;
-}
 
 function activeIdFromPath(pathname: string | null): string | null {
   if (!pathname) return null;
@@ -52,6 +49,10 @@ interface StoreValue {
   groupLoading: boolean;
   sync: SyncStatus;
 
+  // Period selection (UI)
+  activePeriod: number;
+  setActivePeriod: (p: number) => void;
+
   // Active-group mutators
   cycleCell: (key: string) => void;
   setNote: (key: string, text: string) => void;
@@ -59,7 +60,16 @@ interface StoreValue {
   setPrivNote: (studentId: number, text: string) => void;
   setCrit: (next: number[]) => void;
   setUmbral: (n: number) => void;
-  addActivity: (subjectSlug: string, rubroIdx: number, activity: Activity) => void;
+  setPeriodCount: (n: number) => void;
+  setExamTotal: (key: string, value: number) => void;
+  setAcierto: (key: string, value: number) => void;
+  setOverride: (key: string, value: number | null) => void;
+  addActivity: (
+    period: number,
+    subjectSlug: string,
+    rubroIdx: number,
+    activity: Activity
+  ) => void;
   addStudent: (name: string) => void;
   removeStudent: (studentId: number) => void;
   renameStudent: (studentId: number, name: string) => void;
@@ -78,6 +88,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [docs, setDocs] = useState<Record<string, GroupDoc>>({});
   const [groupLoading, setGroupLoading] = useState(false);
   const [sync, setSync] = useState<SyncStatus>("idle");
+  const [activePeriod, setActivePeriod] = useState(0);
+
+  // Reset period selection when switching groups.
+  useEffect(() => {
+    setActivePeriod(0);
+  }, [activeId]);
 
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -244,10 +260,45 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [patchState]
   );
 
-  const addActivity = useCallback(
-    (subjectSlug: string, rubroIdx: number, activity: Activity) =>
+  const setPeriodCount = useCallback(
+    (n: number) =>
+      updateActive((doc) => ({ ...doc, periodCount: Math.max(1, Math.min(6, n)) })),
+    [updateActive]
+  );
+
+  const setExamTotal = useCallback(
+    (key: string, value: number) =>
+      patchState((s) => ({
+        ...s,
+        examTotals: { ...s.examTotals, [key]: value },
+      })),
+    [patchState]
+  );
+
+  const setAcierto = useCallback(
+    (key: string, value: number) =>
+      patchState((s) => ({
+        ...s,
+        examAciertos: { ...s.examAciertos, [key]: value },
+      })),
+    [patchState]
+  );
+
+  const setOverride = useCallback(
+    (key: string, value: number | null) =>
       patchState((s) => {
-        const key = extraKey(subjectSlug, rubroIdx);
+        const overrides = { ...s.overrides };
+        if (value === null || Number.isNaN(value)) delete overrides[key];
+        else overrides[key] = value;
+        return { ...s, overrides };
+      }),
+    [patchState]
+  );
+
+  const addActivity = useCallback(
+    (period: number, subjectSlug: string, rubroIdx: number, activity: Activity) =>
+      patchState((s) => {
+        const key = extraKey(period, subjectSlug, rubroIdx);
         return {
           ...s,
           extraActivities: {
@@ -308,12 +359,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       activeGroup,
       groupLoading,
       sync,
+      activePeriod,
+      setActivePeriod,
       cycleCell,
       setNote,
       setAtt,
       setPrivNote,
       setCrit,
       setUmbral,
+      setPeriodCount,
+      setExamTotal,
+      setAcierto,
+      setOverride,
       addActivity,
       addStudent,
       removeStudent,
@@ -330,12 +387,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       activeGroup,
       groupLoading,
       sync,
+      activePeriod,
       cycleCell,
       setNote,
       setAtt,
       setPrivNote,
       setCrit,
       setUmbral,
+      setPeriodCount,
+      setExamTotal,
+      setAcierto,
+      setOverride,
       addActivity,
       addStudent,
       removeStudent,
@@ -366,8 +428,13 @@ export function useGroup() {
     throw new Error("useGroup used without an active group");
   }
   const data = s.activeGroup;
+  const periodCount = Math.max(1, data.periodCount || 1);
+  const activePeriod = Math.min(s.activePeriod, periodCount - 1);
   return {
     data,
+    periodCount,
+    activePeriod,
+    setActivePeriod: s.setActivePeriod,
     cells: data.state.cells,
     notes: data.state.notes,
     attendance: data.state.attendance,
@@ -383,6 +450,10 @@ export function useGroup() {
     setPrivNote: s.setPrivNote,
     setCrit: s.setCrit,
     setUmbral: s.setUmbral,
+    setPeriodCount: s.setPeriodCount,
+    setExamTotal: s.setExamTotal,
+    setAcierto: s.setAcierto,
+    setOverride: s.setOverride,
     addActivity: s.addActivity,
     addStudent: s.addStudent,
     removeStudent: s.removeStudent,

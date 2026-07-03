@@ -27,6 +27,8 @@ export interface Rubro {
   name: string;
   pct: number;
   activities: Activity[];
+  /** "exam" rubros are scored by aciertos/total instead of ✓◑✗ cells. */
+  kind?: "exam";
 }
 
 export interface Subject {
@@ -39,7 +41,10 @@ export interface Subject {
   rubros: Rubro[];
 }
 
-/** Mutable per-group state (grades, notes, attendance, config). */
+/**
+ * Mutable per-group state. Grade-related keys are period-prefixed
+ * (e.g. "0-lenguajes-1-2-3" = period 0). See lib/data key helpers.
+ */
 export interface GroupState {
   cells: Record<string, CellStatus>;
   notes: Record<string, string>;
@@ -48,6 +53,12 @@ export interface GroupState {
   crit: number[];
   umbral: number;
   extraActivities: Record<string, Activity[]>;
+  /** total questions per exam, key `${period}-${slug}` */
+  examTotals: Record<string, number>;
+  /** aciertos per student, key `${period}-${slug}-${studentId}` */
+  examAciertos: Record<string, number>;
+  /** manual grade overrides (0–10), rubro or subject level */
+  overrides: Record<string, number>;
 }
 
 /** A full group document (students + subjects + state). */
@@ -57,7 +68,10 @@ export interface GroupDoc {
   label: string;
   gradeLevel: string;
   cycle: string;
+  /** label of the current/last-viewed period (kept for display) */
   trimester: string;
+  /** number of evaluation periods in the cycle */
+  periodCount: number;
   students: Student[];
   subjects: Subject[];
   state: GroupState;
@@ -71,6 +85,7 @@ export interface GroupMeta {
   gradeLevel: string;
   cycle: string;
   trimester: string;
+  periodCount: number;
   studentCount: number;
   avg: number;
   risk: number;
@@ -86,6 +101,9 @@ export function emptyState(): GroupState {
     crit: [40, 20, 40],
     umbral: 3,
     extraActivities: {},
+    examTotals: {},
+    examAciertos: {},
+    overrides: {},
   };
 }
 

@@ -3,10 +3,27 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
-import { extraKey, useGroup } from "@/lib/store";
-import { cellKey } from "@/lib/data";
-import { activityAverage, fmt, rubroScore } from "@/lib/calc";
+import { useGroup } from "@/lib/store";
+import {
+  cellKey,
+  examAciertoKey,
+  examTotalKey,
+  extraKey,
+  overrideRubroKey,
+} from "@/lib/data";
+import {
+  activityAverage,
+  activityCount,
+  examScore,
+  fmt,
+  rubroAverage,
+  rubroCalculated,
+  rubroIsOverridden,
+  rubroPoints,
+  rubroScore,
+} from "@/lib/calc";
 import type { Subject } from "@/lib/types";
+import { PeriodTabs } from "@/components/PeriodTabs";
 import { StatusCell } from "@/components/StatusCell";
 import { NotePopover } from "@/components/NotePopover";
 import { NewActivityModal } from "@/components/NewActivityModal";
@@ -21,8 +38,9 @@ interface PopState {
 }
 
 export default function MateriaPage() {
-  const { data, cells, notes, setNote, cycleCell, crit, extraActivities, addActivity } =
-    useGroup();
+  const g = useGroup();
+  const { data, notes, setNote, cycleCell, crit } = g;
+  const period = g.activePeriod;
   const params = useParams<{ materia: string }>();
   const baseSubject = data.subjects.find((s) => s.slug === params.materia);
   if (!baseSubject) notFound();
@@ -32,8 +50,10 @@ export default function MateriaPage() {
   );
   const [pop, setPop] = useState<PopState | null>(null);
   const [newOpen, setNewOpen] = useState(false);
+  const [editing, setEditing] = useState<{ ri: number; sid: number } | null>(null);
+  const [editVal, setEditVal] = useState("");
 
-  // Subject augmented with persisted added activities (keeps calc consistent).
+  // Subject augmented with the added activities of the ACTIVE period.
   const subject: Subject = useMemo(
     () => ({
       ...baseSubject!,
@@ -41,11 +61,11 @@ export default function MateriaPage() {
         ...r,
         activities: [
           ...r.activities,
-          ...(extraActivities[extraKey(baseSubject!.slug, i)] ?? []),
+          ...(g.extraActivities[extraKey(period, baseSubject!.slug, i)] ?? []),
         ],
       })),
     }),
-    [baseSubject, extraActivities]
+    [baseSubject, g.extraActivities, period]
   );
 
   const base = `/grupo/${data.id}`;
@@ -54,10 +74,16 @@ export default function MateriaPage() {
   const toggle = (i: number) =>
     setExpanded((prev) => prev.map((v, idx) => (idx === i ? !v : v)));
 
+  const commitEdit = (ri: number, sid: number) => {
+    const key = overrideRubroKey(period, subject.slug, ri, sid);
+    const num = parseFloat(editVal.replace(",", "."));
+    if (editVal.trim() === "" || Number.isNaN(num)) g.setOverride(key, null);
+    else g.setOverride(key, Math.max(0, Math.min(10, num)));
+    setEditing(null);
+  };
+
   const popStudent = pop ? data.students.find((s) => s.id === pop.studentId) : null;
-  const popKey = pop
-    ? cellKey(subject.slug, pop.ri, pop.ai, pop.studentId)
-    : "";
+  const popKey = pop ? cellKey(period, subject.slug, pop.ri, pop.ai, pop.studentId) : "";
 
   return (
     <div>
@@ -69,8 +95,7 @@ export default function MateriaPage() {
         <div>
           <h1 className={styles.title}>{subject.name}</h1>
           <p className={styles.sub}>
-            {data.trimester} · {data.students.length} alumnos · ponderación{" "}
-            {weights.join("/")}
+            {data.students.length} alumnos · ponderación {weights.join("/")}
           </p>
         </div>
         <button className={styles.newBtn} onClick={() => setNewOpen(true)}>
@@ -79,46 +104,39 @@ export default function MateriaPage() {
         </button>
       </div>
 
+      <PeriodTabs
+        count={g.periodCount}
+        active={period}
+        onChange={g.setActivePeriod}
+      />
+
       <div className={styles.legend}>
         <span className={styles.legendItem}>
-          <span className={styles.dot} data-status="complete">
-            ✓
-          </span>
+          <span className={styles.dot} data-status="complete">✓</span>
           Completa
         </span>
         <span className={styles.legendItem}>
-          <span className={styles.dot} data-status="incomplete">
-            ◑
-          </span>
+          <span className={styles.dot} data-status="incomplete">◑</span>
           Incompleta
         </span>
         <span className={styles.legendItem}>
-          <span className={styles.dot} data-status="missing">
-            ✗
-          </span>
+          <span className={styles.dot} data-status="missing">✗</span>
           No entregó
         </span>
         <span className={styles.hint}>
-          Clic en una celda para cambiar su estado
+          Clic en una celda para cambiar su estado · clic en Calif. para editarla
         </span>
       </div>
 
       <div className={styles.rubros}>
         {subject.rubros.map((rubro, ri) => {
           const open = expanded[ri];
-          const avg =
-            data.students.reduce(
-              (acc, s) => acc + rubroScore(subject, ri, s.id, cells),
-              0
-            ) / data.students.length;
+          const avg = rubroAverage(data, subject, ri, period);
+          const isExam = rubro.kind === "exam";
           return (
             <section key={ri} className={styles.rubro}>
               <button className={styles.rubroHead} onClick={() => toggle(ri)}>
-                <ChevronIcon
-                  size={17}
-                  className={styles.chevron}
-                  data-open={open}
-                />
+                <ChevronIcon size={17} className={styles.chevron} data-open={open} />
                 <span className={styles.rubroName}>{rubro.name}</span>
                 <span className={styles.pct}>{weights[ri]}%</span>
                 <span className={styles.rubroAvg}>
@@ -126,13 +144,26 @@ export default function MateriaPage() {
                 </span>
               </button>
 
-              {open && (
+              {open && isExam && (
+                <ExamTable
+                  subject={subject}
+                  rubroIdx={ri}
+                  period={period}
+                  editing={editing}
+                  editVal={editVal}
+                  setEditing={setEditing}
+                  setEditVal={setEditVal}
+                  commitEdit={commitEdit}
+                />
+              )}
+
+              {open && !isExam && (
                 <div className={styles.tableWrap}>
                   <table className={styles.table}>
                     <thead>
                       <tr>
                         <th className={styles.nameHead}>Alumno</th>
-                        {rubro.activities.map((a, ai) => (
+                        {subject.rubros[ri].activities.map((a, ai) => (
                           <th key={ai} className={styles.actHead} title={a.name}>
                             {a.name}
                           </th>
@@ -142,49 +173,50 @@ export default function MateriaPage() {
                     </thead>
                     <tbody>
                       {data.students.map((student) => {
-                        const score = rubroScore(
-                          subject,
-                          ri,
-                          student.id,
-                          cells
-                        );
+                        const score = rubroScore(data, subject, ri, student.id, period);
+                        const overridden = rubroIsOverridden(data, subject, ri, student.id, period);
+                        const calc = rubroCalculated(data, subject, ri, student.id, period);
+                        const pts = rubroPoints(data, subject, ri, student.id, period);
+                        const maxPts = weights[ri] / 10;
+                        const isEditing = editing?.ri === ri && editing?.sid === student.id;
                         return (
                           <tr key={student.id} className={styles.row}>
                             <td className={styles.nameCell} title={student.name}>
                               {student.name}
                             </td>
-                            {rubro.activities.map((_, ai) => {
-                              const key = cellKey(
-                                subject.slug,
-                                ri,
-                                ai,
-                                student.id
-                              );
-                              const status = cells[key] ?? "complete";
-                              return (
-                                <td key={ai} className={styles.cell}>
-                                  <StatusCell
-                                    status={status}
-                                    hasNote={Boolean(notes[key])}
-                                    onCycle={() => cycleCell(key)}
-                                    onNote={(anchor) =>
-                                      setPop({
-                                        ri,
-                                        ai,
-                                        studentId: student.id,
-                                        anchor,
-                                      })
-                                    }
-                                  />
-                                </td>
-                              );
-                            })}
-                            <td
-                              className={`${styles.calif} tabular`}
-                              data-low={score < 6}
-                            >
-                              {fmt(score)}
-                            </td>
+                            {Array.from({ length: activityCount(data, subject, ri, period) }).map(
+                              (_, ai) => {
+                                const key = cellKey(period, subject.slug, ri, ai, student.id);
+                                const status = g.cells[key] ?? "complete";
+                                return (
+                                  <td key={ai} className={styles.cell}>
+                                    <StatusCell
+                                      status={status}
+                                      hasNote={Boolean(notes[key])}
+                                      onCycle={() => cycleCell(key)}
+                                      onNote={(anchor) =>
+                                        setPop({ ri, ai, studentId: student.id, anchor })
+                                      }
+                                    />
+                                  </td>
+                                );
+                              }
+                            )}
+                            <CalifCell
+                              score={score}
+                              pts={pts}
+                              maxPts={maxPts}
+                              overridden={overridden}
+                              calc={calc}
+                              isEditing={isEditing}
+                              editVal={editVal}
+                              onStart={() => {
+                                setEditing({ ri, sid: student.id });
+                                setEditVal(fmt(score));
+                              }}
+                              onChange={setEditVal}
+                              onCommit={() => commitEdit(ri, student.id)}
+                            />
                           </tr>
                         );
                       })}
@@ -192,17 +224,9 @@ export default function MateriaPage() {
                     <tfoot>
                       <tr>
                         <td className={styles.footLabel}>Promedio actividad</td>
-                        {rubro.activities.map((_, ai) => (
+                        {subject.rubros[ri].activities.map((_, ai) => (
                           <td key={ai} className={`${styles.footAvg} tabular`}>
-                            {fmt(
-                              activityAverage(
-                                subject,
-                                ri,
-                                ai,
-                                data.students,
-                                cells
-                              )
-                            )}
+                            {fmt(activityAverage(data, subject, ri, ai, period))}
                           </td>
                         ))}
                         <td className={styles.footPad} />
@@ -217,14 +241,12 @@ export default function MateriaPage() {
       </div>
 
       {pop && popStudent && (
-        <NotePopoverBinder
-          popKey={popKey}
-          studentName={popStudent.name}
-          activityName={
-            subject.rubros[pop.ri].activities[pop.ai]?.name ?? "Actividad"
-          }
-          anchor={pop.anchor}
+        <NotePopover
+          key={popKey}
+          title={popStudent.name.split(" ").slice(0, 2).join(" ")}
+          subtitle={subject.rubros[pop.ri].activities[pop.ai]?.name ?? "Actividad"}
           initial={notes[popKey] ?? ""}
+          anchor={pop.anchor}
           onClose={() => setPop(null)}
           onSave={(t) => setNote(popKey, t)}
         />
@@ -235,13 +257,11 @@ export default function MateriaPage() {
           subject={subject}
           onClose={() => setNewOpen(false)}
           onCreate={(rubroIdx, name) => {
-            addActivity(baseSubject!.slug, rubroIdx, {
+            g.addActivity(period, baseSubject!.slug, rubroIdx, {
               name,
               date: "2026-02-16",
             });
-            setExpanded((prev) =>
-              prev.map((v, i) => (i === rubroIdx ? true : v))
-            );
+            setExpanded((prev) => prev.map((v, i) => (i === rubroIdx ? true : v)));
             setNewOpen(false);
           }}
         />
@@ -250,32 +270,168 @@ export default function MateriaPage() {
   );
 }
 
-function NotePopoverBinder({
-  popKey,
-  studentName,
-  activityName,
-  anchor,
-  initial,
-  onClose,
-  onSave,
+/* ---- Editable Calif. cell (shows score + weighted points) --------------- */
+
+function CalifCell({
+  score,
+  pts,
+  maxPts,
+  overridden,
+  calc,
+  isEditing,
+  editVal,
+  onStart,
+  onChange,
+  onCommit,
 }: {
-  popKey: string;
-  studentName: string;
-  activityName: string;
-  anchor: DOMRect;
-  initial: string;
-  onClose: () => void;
-  onSave: (text: string) => void;
+  score: number;
+  pts: number;
+  maxPts: number;
+  overridden: boolean;
+  calc: number;
+  isEditing: boolean;
+  editVal: string;
+  onStart: () => void;
+  onChange: (v: string) => void;
+  onCommit: () => void;
 }) {
   return (
-    <NotePopover
-      key={popKey}
-      title={studentName.split(" ").slice(0, 2).join(" ")}
-      subtitle={activityName}
-      initial={initial}
-      anchor={anchor}
-      onClose={onClose}
-      onSave={onSave}
-    />
+    <td className={styles.calif} data-low={score < 6}>
+      {isEditing ? (
+        <input
+          className={styles.califInput}
+          value={editVal}
+          autoFocus
+          inputMode="decimal"
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={onCommit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onCommit();
+            if (e.key === "Escape") onCommit();
+          }}
+        />
+      ) : (
+        <button className={styles.califBtn} onClick={onStart} title="Editar calificación">
+          <span className={`${styles.califValue} tabular`}>{fmt(score)}</span>
+          <span className={styles.califPts}>
+            {pts.toFixed(1)}/{maxPts.toFixed(1)} pts
+          </span>
+          {overridden && (
+            <span
+              className={styles.editDot}
+              title={`Editado manualmente · Calculado: ${fmt(calc)}`}
+            />
+          )}
+        </button>
+      )}
+    </td>
+  );
+}
+
+/* ---- Exam rubro (scored by aciertos) ------------------------------------ */
+
+function ExamTable({
+  subject,
+  rubroIdx,
+  period,
+  editing,
+  editVal,
+  setEditing,
+  setEditVal,
+  commitEdit,
+}: {
+  subject: Subject;
+  rubroIdx: number;
+  period: number;
+  editing: { ri: number; sid: number } | null;
+  editVal: string;
+  setEditing: (e: { ri: number; sid: number } | null) => void;
+  setEditVal: (v: string) => void;
+  commitEdit: (ri: number, sid: number) => void;
+}) {
+  const g = useGroup();
+  const totalKey = examTotalKey(period, subject.slug);
+  const total = g.state.examTotals[totalKey] ?? 0;
+  const weight = g.crit[rubroIdx] ?? subject.rubros[rubroIdx].pct;
+  const maxPts = weight / 10;
+
+  return (
+    <div className={styles.examWrap}>
+      <div className={styles.examTotalRow}>
+        <span className={styles.examTotalLabel}>Aciertos totales del examen</span>
+        <input
+          className={styles.examTotalInput}
+          type="number"
+          min={1}
+          value={total || ""}
+          placeholder="Ej. 20"
+          onChange={(e) => g.setExamTotal(totalKey, Math.max(0, Number(e.target.value)))}
+        />
+        <span className={styles.examHint}>
+          Se pone una vez; la calificación se saca sobre 10.
+        </span>
+      </div>
+
+      {total > 0 && (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th className={styles.nameHead}>Alumno</th>
+                <th className={styles.actHead}>Aciertos</th>
+                <th className={styles.califHead}>Calif.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {g.data.students.map((student) => {
+                const aKey = examAciertoKey(period, subject.slug, student.id);
+                const aciertos = g.state.examAciertos[aKey] ?? 0;
+                const score = examScore(g.data, subject, student.id, period);
+                const overridden = rubroIsOverridden(g.data, subject, rubroIdx, student.id, period);
+                const pts = rubroPoints(g.data, subject, rubroIdx, student.id, period);
+                const calc = rubroCalculated(g.data, subject, rubroIdx, student.id, period);
+                const isEditing =
+                  editing?.ri === rubroIdx && editing?.sid === student.id;
+                return (
+                  <tr key={student.id} className={styles.row}>
+                    <td className={styles.nameCell} title={student.name}>
+                      {student.name}
+                    </td>
+                    <td className={styles.cell}>
+                      <input
+                        className={styles.aciertoInput}
+                        type="number"
+                        min={0}
+                        max={total}
+                        value={aciertos || ""}
+                        placeholder="0"
+                        onChange={(e) =>
+                          g.setAcierto(aKey, Math.max(0, Math.min(total, Number(e.target.value))))
+                        }
+                      />
+                    </td>
+                    <CalifCell
+                      score={score}
+                      pts={pts}
+                      maxPts={maxPts}
+                      overridden={overridden}
+                      calc={calc}
+                      isEditing={isEditing}
+                      editVal={editVal}
+                      onStart={() => {
+                        setEditing({ ri: rubroIdx, sid: student.id });
+                        setEditVal(fmt(score));
+                      }}
+                      onChange={setEditVal}
+                      onCommit={() => commitEdit(rubroIdx, student.id)}
+                    />
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }

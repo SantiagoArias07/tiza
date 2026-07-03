@@ -16,13 +16,19 @@ export default function DashboardPage() {
   const router = useRouter();
   const [newOpen, setNewOpen] = useState(false);
 
-  const firstName = (user?.name ?? "").split(" ")[0] || "Profe";
+  const firstName = (user?.name ?? "").split(" ")[0] || "";
+  const hour = new Date().getHours();
+  const salute =
+    hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches";
+  const greeting = firstName
+    ? `${salute}, Profe ${firstName}`
+    : `${salute}, Profe`;
 
   return (
     <div>
       <div className={styles.headerRow}>
         <div>
-          <h1 className={styles.greeting}>Hola, {firstName}</h1>
+          <h1 className={styles.greeting}>{greeting}</h1>
           <p className={styles.date}>
             {new Date().toLocaleDateString("es-MX", {
               weekday: "long",
@@ -108,20 +114,20 @@ function GroupCard({
       </div>
 
       <div className={styles.metrics}>
-        <Metric label="Alumnos" value={String(group.studentCount)} tone="ink" />
+        <Metric label="Alumnos" value={String(group.studentCount ?? 0)} tone="ink" />
         <Metric
           label="Promedio grupo"
-          value={group.studentCount ? fmt(group.avg) : "—"}
+          value={group.studentCount ? fmt(group.avg ?? 0) : "—"}
           tone="slate"
         />
         <Metric
           label="En riesgo"
-          value={group.studentCount ? `${group.risk}` : "—"}
+          value={group.studentCount ? String(group.risk ?? 0) : "—"}
           tone="risk"
         />
         <Metric
           label="Asistencia"
-          value={group.studentCount ? `${group.attendance.toFixed(0)}%` : "—"}
+          value={group.studentCount ? `${(group.attendance ?? 0).toFixed(0)}%` : "—"}
           tone="ok"
           last
         />

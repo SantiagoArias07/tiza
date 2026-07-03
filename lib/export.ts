@@ -3,13 +3,12 @@ import {
   attendancePct,
   fmt,
   isAtRisk,
-  rubroScore,
-  studentAverage,
+  rubroPoints,
+  studentAverageCycle,
   subjectGrade,
+  subjectGradeCycle,
 } from "./calc";
-import type { AttStatus, CellStatus, GroupDoc, Student, Subject } from "./types";
-
-type Cells = Record<string, CellStatus>;
+import type { GroupDoc, Student, Subject } from "./types";
 
 /* ---- Generic download ---------------------------------------------------- */
 
@@ -29,7 +28,6 @@ function slug(s: string) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
-/** Weekdays of February 2026 (Feb 1 is a Sunday). */
 export function schoolDays(): string[] {
   const out: string[] = [];
   for (let d = 1; d <= 28; d++) {
@@ -38,25 +36,25 @@ export function schoolDays(): string[] {
   return out;
 }
 
+const INK = "#2E2C26";
+const SLATE = "#43545F";
+const MUTED = "#8A8475";
+const RISK = "#C2705A";
+const HEAD_BG = "#FBF9F3";
+const BORDER = "#C9C0AD";
+
 /* ---- CSV (backup) -------------------------------------------------------- */
 
 function csvCell(v: string): string {
   return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
 
-export function boletaCsv(data: GroupDoc, cells: Cells): string {
-  const header = [
-    "Alumno",
-    ...data.subjects.map((s) => s.name),
-    "Promedio",
-    "En riesgo",
-  ];
-  const rows = data.students.map((student) => {
-    const grades = data.subjects.map((s) =>
-      fmt(subjectGrade(s, student.id, cells))
-    );
-    const avg = fmt(studentAverage(data, student.id, cells));
-    const risk = isAtRisk(data, student.id, cells) ? "Sí" : "No";
+export function boletaCsv(doc: GroupDoc): string {
+  const header = ["Alumno", ...doc.subjects.map((s) => s.name), "Promedio", "En riesgo"];
+  const rows = doc.students.map((student) => {
+    const grades = doc.subjects.map((s) => fmt(subjectGradeCycle(doc, s, student.id)));
+    const avg = fmt(studentAverageCycle(doc, student.id));
+    const risk = isAtRisk(doc, student.id) ? "Sí" : "No";
     return [student.name, ...grades, avg, risk];
   });
   return [header, ...rows]
@@ -64,193 +62,160 @@ export function boletaCsv(data: GroupDoc, cells: Cells): string {
     .join("\n");
 }
 
-export function downloadBoletaCsv(data: GroupDoc, cells: Cells) {
-  const csv = "﻿" + boletaCsv(data, cells); // BOM for Excel accents
-  downloadBlob(`respaldo-${slug(data.label)}.csv`, csv, "text/csv;charset=utf-8");
+export function downloadBoletaCsv(doc: GroupDoc) {
+  const csv = "﻿" + boletaCsv(doc);
+  downloadBlob(`respaldo-${slug(doc.label)}.csv`, csv, "text/csv;charset=utf-8");
 }
 
-/* ---- Grade breakdown per subject ---------------------------------------- */
+/* ---- Per-subject breakdown ---------------------------------------------- */
 
 interface Breakdown {
-  examen: number; // weighted, max 4.0
-  trabajo: number; // weighted, max 4.0
-  tareas: number; // weighted, max 2.0
-  decimal: number; // 0–10
-  final: number; // rounded
+  trabajo: number; // weighted (Actividades en clase)
+  tareas: number; // weighted (Actividades en casa)
+  examen: number; // weighted (Examen)
+  decimal: number;
+  final: number;
 }
 
-// Rubro order from the seed: 0 = Actividades en clase (Trabajo en aula),
-// 1 = Actividades en casa (Tareas), 2 = Examen.
 function breakdown(
-  group: GroupDoc,
+  doc: GroupDoc,
   subject: Subject,
-  studentId: number,
-  cells: Cells
+  sid: number,
+  period: number
 ): Breakdown {
-  const crit = group.state.crit;
-  const trabajo = rubroScore(subject, 0, studentId, cells) * ((crit[0] ?? 40) / 100);
-  const tareas = rubroScore(subject, 1, studentId, cells) * ((crit[1] ?? 20) / 100);
-  const examen = rubroScore(subject, 2, studentId, cells) * ((crit[2] ?? 40) / 100);
-  const decimal = subjectGrade(subject, studentId, cells);
-  return { examen, trabajo, tareas, decimal, final: Math.round(decimal) };
+  const examRi = subject.rubros.findIndex((r) => r.kind === "exam");
+  const nonExam = subject.rubros
+    .map((r, i) => ({ r, i }))
+    .filter((x) => x.r.kind !== "exam");
+  const trabajoRi = nonExam[0]?.i ?? 0;
+  const tareasRi = nonExam[1]?.i ?? 1;
+  const trabajo = rubroPoints(doc, subject, trabajoRi, sid, period);
+  const tareas = rubroPoints(doc, subject, tareasRi, sid, period);
+  const examen = examRi >= 0 ? rubroPoints(doc, subject, examRi, sid, period) : 0;
+  const decimal = subjectGrade(doc, subject, sid, period);
+  return { trabajo, tareas, examen, decimal, final: Math.round(decimal) };
 }
 
-function periodFromTrimester(trimester: string): 0 | 1 | 2 {
-  if (trimester.startsWith("1")) return 0;
-  if (trimester.startsWith("3")) return 2;
-  return 1;
-}
-
-/* ---- Low-level table drawing -------------------------------------------- */
-
-const INK = "#2E2C26";
-const SLATE = "#43545F";
-const MUTED = "#8A8475";
-const RISK = "#C2705A";
-const HEAD_BG = "#FBF9F3";
-const BORDER = "#D9D2C3";
-
-interface Col {
-  label: string;
-  w: number;
-  align?: "left" | "center";
-}
-
-function drawTable(
-  doc: jsPDF,
-  x: number,
-  y: number,
-  cols: Col[],
-  rows: Array<Array<{ text: string; color?: string; bold?: boolean }>>,
-  opts: { rowH?: number; headerH?: number } = {}
-): number {
-  const rowH = opts.rowH ?? 22;
-  const headerH = opts.headerH ?? 30;
-  const totalW = cols.reduce((a, c) => a + c.w, 0);
-
-  // Header
-  doc.setFillColor(HEAD_BG);
-  doc.setDrawColor(BORDER);
-  doc.rect(x, y, totalW, headerH, "FD");
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
-  doc.setTextColor(SLATE);
-  let cx = x;
-  for (const col of cols) {
-    const lines = col.label.split("\n");
-    const ty = y + headerH / 2 - (lines.length - 1) * 4.5 + 3;
-    const align = col.align ?? "center";
-    lines.forEach((ln, i) => {
-      if (align === "left") doc.text(ln, cx + 6, ty + i * 9);
-      else doc.text(ln, cx + col.w / 2, ty + i * 9, { align: "center" });
-    });
-    cx += col.w;
-    if (cx < x + totalW) doc.line(cx, y, cx, y + headerH);
-  }
-
-  // Rows
-  let ry = y + headerH;
-  doc.setFontSize(9);
-  for (const row of rows) {
-    doc.setDrawColor(BORDER);
-    doc.rect(x, ry, totalW, rowH);
-    cx = x;
-    row.forEach((cell, i) => {
-      const col = cols[i];
-      doc.setFont("helvetica", cell.bold ? "bold" : "normal");
-      doc.setTextColor(cell.color ?? INK);
-      const align = col.align ?? "center";
-      const ty = ry + rowH / 2 + 3;
-      if (align === "left") {
-        doc.text(cell.text, cx + 6, ty, { maxWidth: col.w - 10 });
-      } else {
-        doc.text(cell.text, cx + col.w / 2, ty, { align: "center" });
-      }
-      cx += col.w;
-      if (i < row.length - 1) doc.line(cx, ry, cx, ry + rowH);
-    });
-    ry += rowH;
-  }
-  return ry;
-}
-
-/* ---- 1. Concentrado (formato interno de la maestra) --------------------- */
+/* ---- 1. Concentrado (horizontal, todos los periodos) -------------------- */
 
 function drawConcentrado(
   doc: jsPDF,
   group: GroupDoc,
   student: Student,
-  cells: Cells,
   teacher: string
 ) {
   const W = doc.internal.pageSize.getWidth();
-  const mx = 40;
-  let y = 52;
+  const mx = 32;
+  let y = 44;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(15);
   doc.setTextColor(INK);
   doc.text("CONCENTRADO DE CALIFICACIONES", W / 2, y, { align: "center" });
-  y += 15;
+  y += 14;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9.5);
   doc.setTextColor(MUTED);
-  doc.text(`CICLO ESCOLAR ${group.cycle}`, W / 2, y, { align: "center" });
+  doc.text(`Ciclo escolar ${group.cycle}`, W / 2, y, { align: "center" });
 
-  y += 28;
+  y += 24;
   doc.setFontSize(11);
   doc.setTextColor(INK);
   doc.setFont("helvetica", "bold");
-  doc.text("NOMBRE DEL ALUMNO (A):", mx, y);
+  doc.text("Alumno(a):", mx, y);
   doc.setFont("helvetica", "normal");
-  doc.text(student.name, mx + 150, y);
+  doc.text(student.name, mx + 62, y);
+  doc.setFont("helvetica", "bold");
+  doc.text(group.label, W - mx, y, { align: "right" });
 
   y += 16;
+
+  const periods = Math.max(1, group.periodCount || 1);
+  const subCols = ["Ex", "Trab", "Tar", "Dec", "Fin"];
+  const nameW = 150;
+  const avail = W - mx * 2 - nameW;
+  const groupW = avail / periods;
+  const cellW = groupW / subCols.length;
+  const headH1 = 18;
+  const headH2 = 16;
+  const rowH = 20;
+
+  // Header row 1: period group labels
+  let x = mx;
+  doc.setDrawColor(BORDER);
+  doc.setFillColor(HEAD_BG);
+  doc.rect(mx, y, nameW, headH1 + headH2, "FD");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(10.5);
+  doc.setFontSize(9);
   doc.setTextColor(SLATE);
+  doc.text("Materia / Campo", mx + 6, y + headH1 + headH2 / 2 + 3);
+  x = mx + nameW;
+  for (let p = 0; p < periods; p++) {
+    doc.setFillColor(HEAD_BG);
+    doc.rect(x, y, groupW, headH1, "FD");
+    doc.setFontSize(8.5);
+    doc.setTextColor(SLATE);
+    doc.text(`Periodo ${p + 1}`, x + groupW / 2, y + 12, { align: "center" });
+    // sub columns
+    let sx = x;
+    subCols.forEach((sc) => {
+      doc.setFillColor(HEAD_BG);
+      doc.rect(sx, y + headH1, cellW, headH2, "FD");
+      doc.setFontSize(7);
+      doc.setTextColor(MUTED);
+      doc.text(sc, sx + cellW / 2, y + headH1 + 11, { align: "center" });
+      sx += cellW;
+    });
+    x += groupW;
+  }
+  y += headH1 + headH2;
+
+  // Rows: subjects
+  doc.setFontSize(8.5);
+  group.subjects.forEach((subject) => {
+    doc.setDrawColor(BORDER);
+    doc.rect(mx, y, nameW, rowH);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(INK);
+    doc.text(subject.name, mx + 6, y + rowH / 2 + 3, { maxWidth: nameW - 10 });
+    let cx = mx + nameW;
+    for (let p = 0; p < periods; p++) {
+      const b = breakdown(group, subject, student.id, p);
+      const vals = [
+        b.examen.toFixed(1),
+        b.trabajo.toFixed(1),
+        b.tareas.toFixed(1),
+        b.decimal.toFixed(1),
+        String(b.final),
+      ];
+      let sx = cx;
+      vals.forEach((v, i) => {
+        doc.rect(sx, y, cellW, rowH);
+        doc.setFont("helvetica", i >= 3 ? "bold" : "normal");
+        doc.setTextColor(i === 3 && b.decimal < 6 ? RISK : i >= 3 ? INK : SLATE);
+        doc.setFontSize(i >= 3 ? 8.5 : 8);
+        doc.text(v, sx + cellW / 2, y + rowH / 2 + 3, { align: "center" });
+        sx += cellW;
+      });
+      cx += groupW;
+    }
+    y += rowH;
+  });
+
+  y += 8;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(MUTED);
   doc.text(
-    `${group.label} · ${group.gradeLevel} · ${group.trimester}`,
+    "Ex = Examen · Trab = Trabajo en aula · Tar = Tareas · Dec = Calif. con decimal · Fin = Calif. final",
     mx,
     y
   );
 
-  y += 14;
-  const cols: Col[] = [
-    { label: "MATERIAS / CAMPOS", w: 170, align: "left" },
-    { label: "EXAMEN\n(4.0)", w: 62 },
-    { label: "TRABAJO EN\nAULA (4.0)", w: 66 },
-    { label: "TAREAS\n(2.0)", w: 54 },
-    { label: "CALIF. CON\nDECIMAL", w: 70 },
-    { label: "CALIF.\nFINAL", w: 58 },
-  ];
-  const rows = group.subjects.map((s) => {
-    const b = breakdown(group, s, student.id, cells);
-    const low = b.decimal < 6;
-    return [
-      { text: s.name, align: "left", bold: true },
-      { text: b.examen.toFixed(1) },
-      { text: b.trabajo.toFixed(1) },
-      { text: b.tareas.toFixed(1) },
-      { text: b.decimal.toFixed(1), color: low ? RISK : SLATE },
-      { text: String(b.final), bold: true, color: low ? RISK : INK },
-    ];
-  });
-  y = drawTable(doc, mx, y, cols, rows);
-
-  y += 30;
-  doc.setFont("helvetica", "normal");
+  y += 22;
   doc.setFontSize(10);
   doc.setTextColor(SLATE);
   doc.text(`Mtro(a). ${teacher}`, mx, y);
-
-  doc.setFontSize(8.5);
-  doc.setTextColor(MUTED);
-  doc.text(
-    `Generado con Tiza · ${new Date().toLocaleDateString("es-MX")}`,
-    mx,
-    doc.internal.pageSize.getHeight() - 30
-  );
 }
 
 export function downloadStudentConcentrado(
@@ -258,39 +223,44 @@ export function downloadStudentConcentrado(
   student: Student,
   teacher: string
 ) {
-  const doc = new jsPDF({ unit: "pt", format: "a4" });
-  drawConcentrado(doc, group, student, group.state.cells, teacher);
+  const doc = new jsPDF({ unit: "pt", format: "a4", orientation: "landscape" });
+  drawConcentrado(doc, group, student, teacher);
   doc.save(`concentrado-${slug(student.name)}.pdf`);
 }
 
-/* ---- 2. Boleta oficial (formato SEP) ------------------------------------ */
+/* ---- 2. Boleta oficial (vertical, formato SEP) -------------------------- */
 
-function drawBoleta(
-  doc: jsPDF,
-  group: GroupDoc,
-  student: Student,
-  cells: Cells,
-  attendance: Record<string, AttStatus>,
-  teacher: string
-) {
+function drawBoleta(doc: jsPDF, group: GroupDoc, student: Student, teacher: string) {
   const W = doc.internal.pageSize.getWidth();
-  const mx = 40;
-  let y = 50;
+  const H = doc.internal.pageSize.getHeight();
+  const mx = 42;
+  let y = 46;
 
-  // Header band
-  doc.setFillColor("#2C3D4C");
-  doc.rect(0, 0, W, 6, "F");
+  // Institutional header
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
+  doc.setFontSize(15);
+  doc.setTextColor("#7A1F2B");
+  doc.text("EDUCACIÓN", mx, y);
   doc.setTextColor(INK);
-  doc.text("SISTEMA EDUCATIVO NACIONAL", mx, y);
-  y += 15;
-  doc.setFontSize(10);
-  doc.setTextColor(SLATE);
-  doc.text("BOLETA DE EVALUACIÓN", mx, y);
-  doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.text("SISTEMA EDUCATIVO NACIONAL", W - mx, y - 4, { align: "right" });
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text("BOLETA DE EVALUACIÓN", W - mx, y + 9, { align: "right" });
+  y += 8;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
   doc.setTextColor(MUTED);
+  doc.text("Secretaría de Educación Pública", mx, y);
+  y += 16;
+  doc.setDrawColor("#7A1F2B");
+  doc.setLineWidth(1.4);
+  doc.line(mx, y, W - mx, y);
+  doc.setLineWidth(1);
+  y += 8;
+  doc.setFontSize(9);
+  doc.setTextColor(SLATE);
   doc.text(
     `${group.gradeLevel.toUpperCase()} · CICLO ESCOLAR ${group.cycle}`,
     W - mx,
@@ -298,84 +268,126 @@ function drawBoleta(
     { align: "right" }
   );
 
-  y += 26;
+  // Student / school
+  y += 22;
   doc.setFontSize(10);
   doc.setTextColor(INK);
   doc.setFont("helvetica", "bold");
-  doc.text("ALUMNO(A):", mx, y);
+  doc.text("NOMBRE DEL ALUMNO(A):", mx, y);
   doc.setFont("helvetica", "normal");
-  doc.text(student.name, mx + 66, y);
-  y += 15;
+  doc.text(student.name, mx + 138, y);
+  y += 16;
   doc.setFont("helvetica", "bold");
   doc.text("ESCUELA:", mx, y);
   doc.setFont("helvetica", "normal");
-  doc.text(group.label ? `Grupo ${group.label}` : "", W - mx, y, {
-    align: "right",
-  });
-  doc.text("—", mx + 56, y);
+  doc.text("________________________", mx + 54, y);
+  doc.setFont("helvetica", "bold");
+  doc.text("GRUPO:", W - mx - 80, y);
+  doc.setFont("helvetica", "normal");
+  doc.text(group.label, W - mx - 34, y);
 
-  // Campos formativos = subjects excluding Educación Física, up to 4.
-  const campos = group.subjects
-    .filter((s) => s.slug !== "fisica")
-    .slice(0, 4);
-  const period = periodFromTrimester(group.trimester);
-  const periodNames = ["PRIMERO", "SEGUNDO", "TERCERO"];
+  // Campos formativos table
+  y += 22;
+  const campos = group.subjects.filter((s) => s.slug !== "fisica").slice(0, 4);
+  const periods = Math.max(1, group.periodCount || 1);
+  const periodOrdinals = ["PRIMERO", "SEGUNDO", "TERCERO", "CUARTO", "QUINTO", "SEXTO"];
 
-  y += 18;
-  const nameCol = 132;
+  const nameCol = 118;
   const campoW = (W - mx * 2 - nameCol) / Math.max(campos.length, 1);
-  const cols: Col[] = [
-    { label: "PERIODO DE\nEVALUACIÓN", w: nameCol, align: "left" },
-    ...campos.map((c) => ({ label: c.name.toUpperCase(), w: campoW })),
-  ];
+  const headH = 40;
+  const rowH = 26;
 
-  const rows = periodNames.map((pName, pIdx) => {
-    const isActive = pIdx === period;
-    return [
-      { text: pName, align: "left" as const, bold: true },
-      ...campos.map((c) => {
-        if (!isActive) return { text: "" };
-        const g = subjectGrade(c, student.id, cells);
-        return { text: String(Math.round(g)), color: g < 6 ? RISK : INK };
-      }),
-    ];
+  // Header
+  doc.setDrawColor(BORDER);
+  doc.setFillColor(HEAD_BG);
+  doc.rect(mx, y, nameCol, headH, "FD");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(SLATE);
+  doc.text("PERIODO DE\nEVALUACIÓN", mx + nameCol / 2, y + headH / 2, {
+    align: "center",
   });
-  // Promedio final row
-  rows.push([
-    { text: "PROMEDIO FINAL", align: "left" as const, bold: true },
-    ...campos.map((c) => {
-      const g = subjectGrade(c, student.id, cells);
-      return { text: g.toFixed(1), bold: true, color: g < 6 ? RISK : SLATE };
-    }),
-  ]);
+  let cx = mx + nameCol;
+  campos.forEach((c) => {
+    doc.setFillColor(HEAD_BG);
+    doc.rect(cx, y, campoW, headH, "FD");
+    doc.setFontSize(7.5);
+    doc.text(c.name.toUpperCase(), cx + campoW / 2, y + headH / 2, {
+      align: "center",
+      maxWidth: campoW - 6,
+    });
+    cx += campoW;
+  });
+  y += headH;
 
-  y = drawTable(doc, mx, y, cols, rows, { rowH: 26, headerH: 32 });
+  // Period rows
+  for (let p = 0; p < periods; p++) {
+    doc.setDrawColor(BORDER);
+    doc.rect(mx, y, nameCol, rowH);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(INK);
+    doc.text(periodOrdinals[p] ?? `PERIODO ${p + 1}`, mx + nameCol / 2, y + rowH / 2 + 3, {
+      align: "center",
+    });
+    let px = mx + nameCol;
+    campos.forEach((c) => {
+      doc.rect(px, y, campoW, rowH);
+      const g = subjectGrade(group, c, student.id, p);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(12);
+      doc.setTextColor(g < 6 ? RISK : INK);
+      doc.text(String(Math.round(g)), px + campoW / 2, y + rowH / 2 + 4, {
+        align: "center",
+      });
+      px += campoW;
+    });
+    y += rowH;
+  }
+  // Promedio final row
+  doc.setDrawColor(BORDER);
+  doc.setFillColor(HEAD_BG);
+  doc.rect(mx, y, nameCol, rowH, "FD");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(SLATE);
+  doc.text("PROMEDIO FINAL", mx + nameCol / 2, y + rowH / 2 + 3, { align: "center" });
+  let fx = mx + nameCol;
+  campos.forEach((c) => {
+    doc.setFillColor(HEAD_BG);
+    doc.rect(fx, y, campoW, rowH, "FD");
+    const g = subjectGradeCycle(group, c, student.id);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(g < 6 ? RISK : SLATE);
+    doc.text(g.toFixed(1), fx + campoW / 2, y + rowH / 2 + 4, { align: "center" });
+    fx += campoW;
+  });
+  y += rowH;
 
   // Summary boxes
-  y += 22;
-  const avg = studentAverage(group, student.id, cells);
-  const att = attendancePct(student.id, schoolDays(), attendance);
+  y += 20;
+  const avg = studentAverageCycle(group, student.id);
+  const att = attendancePct(student.id, schoolDays(), group.state.attendance);
   const promovido = avg >= 6;
-
   const boxW = (W - mx * 2 - 24) / 3;
   const boxY = y;
-  const boxes = [
+  [
     { label: "ASISTENCIA", value: `${att.pct.toFixed(0)}%` },
-    { label: promovido ? "PROMOVIDO" : "NO PROMOVIDO", value: promovido ? "Sí" : "No" },
+    { label: promovido ? "PROMOVIDO" : "NO PROMOVIDO", value: promovido ? "✓" : "—" },
     { label: "PROMEDIO FINAL DE GRADO", value: avg.toFixed(1) },
-  ];
-  boxes.forEach((b, i) => {
+  ].forEach((b, i) => {
     const bx = mx + i * (boxW + 12);
     doc.setDrawColor(BORDER);
-    doc.setFillColor("#FBF9F3");
+    doc.setFillColor(HEAD_BG);
     doc.rect(bx, boxY, boxW, 46, "FD");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.5);
     doc.setTextColor(MUTED);
     doc.text(b.label, bx + boxW / 2, boxY + 14, { align: "center", maxWidth: boxW - 8 });
-    doc.setFontSize(16);
+    doc.setFontSize(17);
     doc.setTextColor(i === 2 ? SLATE : INK);
-    doc.text(b.value, bx + boxW / 2, boxY + 36, { align: "center" });
+    doc.text(b.value, bx + boxW / 2, boxY + 37, { align: "center" });
   });
   y = boxY + 46;
 
@@ -387,52 +399,50 @@ function drawBoleta(
   doc.text("OBSERVACIONES Y SUGERENCIAS SOBRE LOS APRENDIZAJES", mx, y);
   y += 8;
   doc.setDrawColor(BORDER);
-  doc.rect(mx, y, W - mx * 2, 90);
+  doc.rect(mx, y, W - mx * 2, 96);
 
   // Signatures
-  y += 108;
+  const footY = H - 54;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(INK);
-  doc.text(`Nombre del docente: ${teacher}`, mx, y);
+  doc.text(`Nombre del docente: ${teacher}`, mx, footY - 16);
 
-  const footY = doc.internal.pageSize.getHeight() - 40;
   const sigW = (W - mx * 2 - 20) / 3;
+  doc.setFontSize(8);
+  doc.setTextColor(MUTED);
+  doc.text("FIRMA DE LA MADRE, PADRE, TUTORA O TUTOR", W / 2, footY - 2, {
+    align: "center",
+  });
   ["Primer periodo", "Segundo periodo", "Tercer periodo"].forEach((lbl, i) => {
     const sx = mx + i * (sigW + 10);
     doc.setDrawColor(BORDER);
-    doc.line(sx, footY, sx + sigW, footY);
-    doc.setFontSize(8);
-    doc.setTextColor(MUTED);
-    doc.text(lbl, sx + sigW / 2, footY + 12, { align: "center" });
+    doc.line(sx, footY + 24, sx + sigW, footY + 24);
+    doc.text(lbl, sx + sigW / 2, footY + 34, { align: "center" });
   });
-  doc.setFontSize(8);
-  doc.setTextColor(MUTED);
-  doc.text(
-    "Firma de la madre, padre, tutora o tutor",
-    W / 2,
-    footY - 8,
-    { align: "center" }
-  );
 }
 
 export function downloadStudentBoleta(
   group: GroupDoc,
   student: Student,
-  attendance: Record<string, AttStatus>,
+  _attendance: unknown,
   teacher: string
 ) {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
-  drawBoleta(doc, group, student, group.state.cells, attendance, teacher);
+  drawBoleta(doc, group, student, teacher);
   doc.save(`boleta-${slug(student.name)}.pdf`);
 }
 
-/** All students' boletas in a single multi-page PDF (group backup/report). */
+/** All students' boletas in a single multi-page PDF. */
 export function downloadGroupBoletas(group: GroupDoc, teacher: string) {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
-  group.students.forEach((student, i) => {
-    if (i > 0) doc.addPage();
-    drawBoleta(doc, group, student, group.state.cells, group.state.attendance, teacher);
-  });
+  if (!group.students.length) {
+    drawBoleta(doc, group, { id: -1, name: "—" }, teacher);
+  } else {
+    group.students.forEach((student, i) => {
+      if (i > 0) doc.addPage();
+      drawBoleta(doc, group, student, teacher);
+    });
+  }
   doc.save(`boletas-${slug(group.label)}.pdf`);
 }

@@ -66,7 +66,12 @@ const SUBJECT_DEFS = [
   { slug: "fisica", name: "Educación Física", abbr: "Ed. Fís" },
 ];
 
-const RUBRO_DEFS = [
+const RUBRO_DEFS: Array<{
+  name: string;
+  pct: number;
+  activities: string[];
+  kind?: "exam";
+}> = [
   {
     name: "Actividades en clase",
     pct: 40,
@@ -77,10 +82,12 @@ const RUBRO_DEFS = [
     pct: 20,
     activities: ["Tarea 1", "Tarea 2", "Proyecto"],
   },
-  { name: "Examen", pct: 40, activities: ["Examen del trimestre"] },
+  { name: "Examen", pct: 40, activities: ["Examen del periodo"], kind: "exam" },
 ];
 
-/** Default 8-subject catalog for any group. */
+const DEFAULT_PERIODS = 3;
+
+/** Default campos-formativos catalog for any group. */
 export function defaultSubjects(): Subject[] {
   return SUBJECT_DEFS.map((def, i) => ({
     slug: def.slug,
@@ -92,6 +99,7 @@ export function defaultSubjects(): Subject[] {
     rubros: RUBRO_DEFS.map((r) => ({
       name: r.name,
       pct: r.pct,
+      kind: r.kind,
       activities: r.activities.map((name, ai) => ({
         name,
         date: `2026-02-${String(3 + ai * 2).padStart(2, "0")}`,
@@ -100,8 +108,8 @@ export function defaultSubjects(): Subject[] {
   }));
 }
 
-function cellKey(slug: string, ri: number, ai: number, sid: number) {
-  return `${slug}-${ri}-${ai}-${sid}`;
+function cellKey(p: number, slug: string, ri: number, ai: number, sid: number) {
+  return `${p}-${slug}-${ri}-${ai}-${sid}`;
 }
 
 /** The demo group (3° B) seeded on every new account. */
@@ -111,18 +119,29 @@ export function seedDemoGroup(userId: string): GroupDoc {
   const subjects = defaultSubjects();
   const state = emptyState();
 
-  for (const subject of subjects) {
-    subject.rubros.forEach((rubro, ri) => {
-      rubro.activities.forEach((_, ai) => {
-        for (const student of students) {
-          const roll = rand();
-          let status: CellStatus = "complete";
-          if (roll > 0.86) status = "missing";
-          else if (roll > 0.7) status = "incomplete";
-          state.cells[cellKey(subject.slug, ri, ai, student.id)] = status;
+  for (let p = 0; p < DEFAULT_PERIODS; p++) {
+    for (const subject of subjects) {
+      subject.rubros.forEach((rubro, ri) => {
+        if (rubro.kind === "exam") {
+          const total = 20;
+          state.examTotals[`${p}-${subject.slug}`] = total;
+          for (const student of students) {
+            state.examAciertos[`${p}-${subject.slug}-${student.id}`] =
+              Math.round(12 + rand() * 8); // 12–20 aciertos
+          }
+          return;
         }
+        rubro.activities.forEach((_, ai) => {
+          for (const student of students) {
+            const roll = rand();
+            let status: CellStatus = "complete";
+            if (roll > 0.86) status = "missing";
+            else if (roll > 0.7) status = "incomplete";
+            state.cells[cellKey(p, subject.slug, ri, ai, student.id)] = status;
+          }
+        });
       });
-    });
+    }
   }
 
   const now = Date.now();
@@ -132,7 +151,8 @@ export function seedDemoGroup(userId: string): GroupDoc {
     label: "3° B",
     gradeLevel: "3° Primaria",
     cycle: "2025–2026",
-    trimester: "2° trimestre",
+    trimester: "Periodo 1",
+    periodCount: DEFAULT_PERIODS,
     students,
     subjects,
     state,
@@ -153,7 +173,8 @@ export function newGroup(
     label: input.label,
     gradeLevel: input.gradeLevel || "Primaria",
     cycle: input.cycle || "2025–2026",
-    trimester: input.trimester || "2° trimestre",
+    trimester: input.trimester || "Periodo 1",
+    periodCount: DEFAULT_PERIODS,
     students: [],
     subjects: defaultSubjects(),
     state: emptyState(),

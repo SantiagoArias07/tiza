@@ -16,6 +16,8 @@ export default function ConfiguracionPage() {
     setCrit,
     umbral,
     setUmbral,
+    periodCount,
+    setPeriodCount,
     addStudent,
     removeStudent,
     renameStudent,
@@ -107,6 +109,30 @@ export default function ConfiguracionPage() {
             ))}
           </div>
         )}
+      </section>
+
+      <section className={styles.card}>
+        <h2 className={styles.cardTitle}>Periodos de evaluación</h2>
+        <p className={styles.umbralNote}>
+          ¿En cuántos periodos se divide el ciclo? (aparecen como pestañas en las
+          bitácoras).
+        </p>
+        <div className={styles.umbralStepper}>
+          <button
+            className={styles.umbralBtn}
+            onClick={() => setPeriodCount(Math.max(1, periodCount - 1))}
+          >
+            −
+          </button>
+          <span className={styles.umbralValue}>{periodCount}</span>
+          <button
+            className={styles.umbralBtn}
+            onClick={() => setPeriodCount(Math.min(6, periodCount + 1))}
+          >
+            +
+          </button>
+          <span className={styles.umbralUnit}>periodos</span>
+        </div>
       </section>
 
       <section className={styles.card}>

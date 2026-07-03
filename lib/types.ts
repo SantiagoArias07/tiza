@@ -26,6 +26,8 @@ export interface Rubro {
   /** weight % of the subject grade */
   pct: number;
   activities: Activity[];
+  /** "exam" rubros are scored by aciertos/total instead of ✓◑✗ cells. */
+  kind?: "exam";
 }
 
 export interface Subject {
@@ -39,7 +41,9 @@ export interface Subject {
   rubros: Rubro[];
 }
 
-/** Mutable per-group state (grades, notes, attendance, config). */
+/**
+ * Mutable per-group state. Grade keys are period-prefixed. See lib/data.
+ */
 export interface GroupState {
   cells: Record<string, CellStatus>;
   notes: Record<string, string>;
@@ -48,6 +52,9 @@ export interface GroupState {
   crit: number[];
   umbral: number;
   extraActivities: Record<string, Activity[]>;
+  examTotals: Record<string, number>;
+  examAciertos: Record<string, number>;
+  overrides: Record<string, number>;
 }
 
 /** A full group document (students + subjects + state). */
@@ -58,6 +65,7 @@ export interface GroupDoc {
   gradeLevel: string;
   cycle: string;
   trimester: string;
+  periodCount: number;
   students: Student[];
   subjects: Subject[];
   state: GroupState;
@@ -72,6 +80,7 @@ export interface GroupMeta {
   gradeLevel: string;
   cycle: string;
   trimester: string;
+  periodCount: number;
   studentCount: number;
   avg: number;
   risk: number;
@@ -87,5 +96,12 @@ export function emptyState(): GroupState {
     crit: [40, 20, 40],
     umbral: 3,
     extraActivities: {},
+    examTotals: {},
+    examAciertos: {},
+    overrides: {},
   };
+}
+
+export function periodLabel(index: number): string {
+  return `Periodo ${index + 1}`;
 }

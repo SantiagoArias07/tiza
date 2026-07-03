@@ -2,20 +2,20 @@
 
 import Link from "next/link";
 import { useGroup } from "@/lib/store";
-import { fmt, subjectAverage } from "@/lib/calc";
+import { fmt, subjectAverageCycle } from "@/lib/calc";
 import { PageHeader } from "@/components/ui";
 import { ChevronIcon } from "@/components/icons";
 import styles from "./bitacoras.module.css";
 
 export default function BitacorasPage() {
-  const { data, cells } = useGroup();
+  const { data } = useGroup();
   const base = `/grupo/${data.id}`;
 
   return (
     <div>
       <PageHeader
         title="Bitácoras"
-        subtitle={`Registro de actividades por materia · ${data.trimester}`}
+        subtitle="Registro de actividades por materia y periodo"
       />
 
       <div className={styles.grid}>
@@ -24,7 +24,7 @@ export default function BitacorasPage() {
             (n, r) => n + r.activities.length,
             0
           );
-          const avg = subjectAverage(s, data.students, cells);
+          const avg = subjectAverageCycle(data, s);
           return (
             <Link
               key={s.slug}

@@ -2,27 +2,27 @@
 
 import { useRouter } from "next/navigation";
 import { useGroup } from "@/lib/store";
-import { fmt, groupAverage, subjectGrade, isAtRisk } from "@/lib/calc";
+import {
+  fmt,
+  groupAverage,
+  isAtRisk,
+  studentAverageCycle,
+  subjectGradeCycle,
+} from "@/lib/calc";
 import { PageHeader } from "@/components/ui";
 import styles from "./boleta.module.css";
 
-// A few deterministic "manually edited" grades for the demo indicator.
-const EDITED: Record<string, number> = {
-  "matematicas-2": 7.8,
-  "espanol-10": 8.4,
-};
-
 export default function BoletaPage() {
-  const { data, cells } = useGroup();
+  const { data } = useGroup();
   const router = useRouter();
   const base = `/grupo/${data.id}`;
-  const groupAvg = groupAverage(data, cells);
+  const groupAvg = groupAverage(data);
 
   return (
     <div>
       <PageHeader
         title="Boleta del grupo"
-        subtitle={`${data.label} · ${data.trimester} · resumen de calificaciones`}
+        subtitle={`${data.label} · promedio del ciclo (todos los periodos)`}
       />
 
       <div className={styles.tableWrap}>
@@ -40,44 +40,30 @@ export default function BoletaPage() {
           </thead>
           <tbody>
             {data.students.map((student) => {
-              const risk = isAtRisk(data, student.id, cells);
-              const studentGrades = data.subjects.map((s) =>
-                subjectGrade(s, student.id, cells)
+              const risk = isAtRisk(data, student.id);
+              const grades = data.subjects.map((s) =>
+                subjectGradeCycle(data, s, student.id)
               );
-              const avg =
-                studentGrades.reduce((a, b) => a + b, 0) / studentGrades.length;
+              const avg = studentAverageCycle(data, student.id);
               return (
                 <tr
                   key={student.id}
                   className={styles.row}
                   onClick={() => router.push(`${base}/alumno/${student.id}`)}
                 >
-                  <td
-                    className={styles.nameCell}
-                    data-risk={risk}
-                    title={student.name}
-                  >
+                  <td className={styles.nameCell} data-risk={risk} title={student.name}>
                     {risk && <span className={styles.riskDot} />}
                     <span className={styles.studentName}>{student.name}</span>
                   </td>
                   {data.subjects.map((s, i) => {
-                    const grade = studentGrades[i];
-                    const failed = grade < 6;
-                    const editKey = `${s.slug}-${student.id}`;
-                    const edited = EDITED[editKey];
+                    const grade = grades[i];
                     return (
                       <td
                         key={s.slug}
                         className={`${styles.gradeCell} tabular`}
-                        data-failed={failed}
+                        data-failed={grade < 6}
                       >
                         {fmt(grade)}
-                        {edited !== undefined && (
-                          <span
-                            className={styles.editDot}
-                            title={`Editado manualmente · Calculado: ${fmt(edited)}`}
-                          />
-                        )}
                       </td>
                     );
                   })}
@@ -85,6 +71,13 @@ export default function BoletaPage() {
                 </tr>
               );
             })}
+            {data.students.length === 0 && (
+              <tr>
+                <td className={styles.emptyRow} colSpan={data.subjects.length + 2}>
+                  Aún no hay alumnos. Agrégalos en Configuración.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -92,9 +85,6 @@ export default function BoletaPage() {
       <div className={styles.legend}>
         <span className={styles.legendItem}>
           <span className={styles.legendFail}>5.4</span> Menor a 6.0
-        </span>
-        <span className={styles.legendItem}>
-          <span className={styles.legendEdit} /> Editado manualmente
         </span>
         <span className={styles.groupPill}>
           Prom. grupo <strong>{fmt(groupAvg)}</strong>

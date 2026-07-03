@@ -141,3 +141,10 @@
   color: var(--ink);
   font-weight: 800;
 }
+
+.emptyRow {
+  padding: 22px;
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--muted);
+}
