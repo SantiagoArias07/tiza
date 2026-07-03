@@ -10,7 +10,23 @@ import {
   verifyPassword,
 } from "./auth";
 import { newGroup, seedDemoGroup } from "./seed";
-import { GroupDoc, User, UserRecord, emptyState, toMeta } from "./types";
+import { computeMetrics } from "./metrics";
+import { GroupDoc, GroupMeta, User, UserRecord, emptyState } from "./types";
+
+function toMeta(doc: GroupDoc): GroupMeta {
+  const m = computeMetrics(doc);
+  return {
+    id: doc.id,
+    label: doc.label,
+    gradeLevel: doc.gradeLevel,
+    cycle: doc.cycle,
+    trimester: doc.trimester,
+    studentCount: doc.students.length,
+    avg: m.avg,
+    risk: m.risk,
+    attendance: m.attendance,
+  };
+}
 
 const app = express();
 const store = createStore();

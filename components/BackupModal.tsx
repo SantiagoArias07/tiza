@@ -1,23 +1,28 @@
 "use client";
 
 import { useStore } from "@/lib/store";
-import { downloadBackup, downloadBoletaCsv } from "@/lib/export";
+import { useAuth } from "@/lib/auth";
+import { downloadBoletaCsv, downloadGroupBoletas } from "@/lib/export";
 import { Modal } from "./ui";
-import { DownloadIcon, FileTextIcon, XIcon } from "./icons";
+import { FileTextIcon, XIcon } from "./icons";
 import styles from "./BackupModal.module.css";
 
 export function BackupModal({ onClose }: { onClose: () => void }) {
   const { activeGroup } = useStore();
+  const { user } = useAuth();
   if (!activeGroup) return null;
   const data = activeGroup;
   const cells = activeGroup.state.cells;
+  const teacher = user?.name ?? "Docente";
 
   return (
-    <Modal width={440} onClose={onClose}>
+    <Modal width={460} onClose={onClose}>
       <div className={styles.header}>
         <div>
-          <h2 className={styles.title}>Descargar respaldo</h2>
-          <p className={styles.sub}>Guarda una copia de la bitácora del grupo.</p>
+          <h2 className={styles.title}>Descargar del grupo</h2>
+          <p className={styles.sub}>
+            Reportes y respaldo. Tus datos ya se guardan solos en la nube.
+          </p>
         </div>
         <button className={styles.close} onClick={onClose} aria-label="Cerrar">
           <XIcon size={18} />
@@ -28,17 +33,17 @@ export function BackupModal({ onClose }: { onClose: () => void }) {
         <button
           className={styles.option}
           onClick={() => {
-            downloadBackup(data);
+            downloadGroupBoletas(data, teacher);
             onClose();
           }}
         >
           <span className={styles.optIcon} data-variant="full">
-            <DownloadIcon size={20} />
+            <FileTextIcon size={20} />
           </span>
           <span className={styles.optText}>
-            <span className={styles.optTitle}>Respaldo completo (.json)</span>
+            <span className={styles.optTitle}>Boletas de todo el grupo (PDF)</span>
             <span className={styles.optDesc}>
-              Todo el grupo: alumnos, calificaciones, notas y asistencia.
+              Una boleta oficial por alumno, en un solo archivo.
             </span>
           </span>
         </button>
@@ -54,9 +59,9 @@ export function BackupModal({ onClose }: { onClose: () => void }) {
             <FileTextIcon size={20} />
           </span>
           <span className={styles.optText}>
-            <span className={styles.optTitle}>Exportar a CSV</span>
+            <span className={styles.optTitle}>Respaldo en CSV</span>
             <span className={styles.optDesc}>
-              Tabla de calificaciones para abrir en hojas de cálculo.
+              Tabla de calificaciones para Excel o Google Sheets.
             </span>
           </span>
         </button>

@@ -72,6 +72,9 @@ export interface GroupMeta {
   cycle: string;
   trimester: string;
   studentCount: number;
+  avg: number;
+  risk: number;
+  attendance: number;
 }
 
 export function emptyState(): GroupState {
@@ -86,13 +89,4 @@ export function emptyState(): GroupState {
   };
 }
 
-export function toMeta(doc: GroupDoc): GroupMeta {
-  return {
-    id: doc.id,
-    label: doc.label,
-    gradeLevel: doc.gradeLevel,
-    cycle: doc.cycle,
-    trimester: doc.trimester,
-    studentCount: doc.students.length,
-  };
-}
+// toMeta is defined in index.ts where metrics are available (avoids a cycle).

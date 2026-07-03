@@ -46,25 +46,24 @@ const STUDENT_NAMES = [
 ];
 
 const PALETTE: Array<[string, string]> = [
-  ["#EDE7DC", "#7A6A4E"],
   ["#E5ECF1", "#41607B"],
   ["#E6EFE6", "#5E8A57"],
   ["#F2E8E3", "#B07A5E"],
-  ["#EAEAF0", "#6A6A86"],
-  ["#F3EFE0", "#9A8A3E"],
+  ["#EDE7DC", "#7A6A4E"],
   ["#E5EFEC", "#4E8A78"],
-  ["#F1E9F0", "#876A86"],
 ];
 
+// Campos formativos del plan de estudios 2022 (SEP) + Educación Física.
 const SUBJECT_DEFS = [
-  { slug: "espanol", name: "Español", abbr: "Esp" },
-  { slug: "matematicas", name: "Matemáticas", abbr: "Mat" },
-  { slug: "ciencias", name: "Ciencias Naturales", abbr: "C. Nat" },
-  { slug: "historia", name: "Historia", abbr: "Hist" },
-  { slug: "geografia", name: "Geografía", abbr: "Geo" },
-  { slug: "civica", name: "Formación C. y É.", abbr: "FCyÉ" },
-  { slug: "fisica", name: "Educación Física", abbr: "Ed. F" },
-  { slug: "artes", name: "Artes", abbr: "Art" },
+  { slug: "lenguajes", name: "Lenguajes", abbr: "Leng" },
+  {
+    slug: "saberes",
+    name: "Saberes y Pensamiento Científico",
+    abbr: "Saberes",
+  },
+  { slug: "etica", name: "Ética, Naturaleza y Sociedades", abbr: "Ética" },
+  { slug: "humano", name: "De lo Humano y lo Comunitario", abbr: "Humano" },
+  { slug: "fisica", name: "Educación Física", abbr: "Ed. Fís" },
 ];
 
 const RUBRO_DEFS = [

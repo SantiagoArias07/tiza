@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { notFound, useParams } from "next/navigation";
 import { useGroup } from "@/lib/store";
+import { useAuth } from "@/lib/auth";
 import {
   attKey,
   attendancePct,
@@ -11,11 +12,9 @@ import {
   rubroScore,
   subjectGrade,
 } from "@/lib/calc";
-import { downloadStudentPdf } from "@/lib/export";
+import { downloadStudentBoleta, downloadStudentConcentrado } from "@/lib/export";
 import { FileTextIcon } from "@/components/icons";
 import styles from "./alumno.module.css";
-
-const EDITED = new Set(["matematicas", "espanol"]); // demo "edited" subjects
 
 function schoolDaysFeb2026() {
   const out: string[] = [];
@@ -28,6 +27,8 @@ function schoolDaysFeb2026() {
 
 export default function AlumnoPage() {
   const { data, cells, attendance, privNotes, setPrivNote, crit } = useGroup();
+  const { user } = useAuth();
+  const teacher = user?.name ?? "Docente";
   const params = useParams<{ alumnoId: string }>();
   const student = data.students.find((s) => String(s.id) === params.alumnoId);
   if (!student) notFound();
@@ -63,21 +64,22 @@ export default function AlumnoPage() {
             </p>
           </div>
         </div>
-        <button
-          className={styles.pdfBtn}
-          onClick={() =>
-            downloadStudentPdf(
-              data,
-              student!,
-              cells,
-              attendance,
-              privNotes[student!.id]
-            )
-          }
-        >
-          <FileTextIcon size={17} />
-          Generar PDF del alumno
-        </button>
+        <div className={styles.pdfActions}>
+          <button
+            className={styles.pdfBtn}
+            onClick={() => downloadStudentBoleta(data, student!, attendance, teacher)}
+          >
+            <FileTextIcon size={17} />
+            Boleta oficial
+          </button>
+          <button
+            className={styles.pdfBtnGhost}
+            onClick={() => downloadStudentConcentrado(data, student!, teacher)}
+          >
+            <FileTextIcon size={17} />
+            Concentrado
+          </button>
+        </div>
       </div>
 
       <div className={styles.grid}>
@@ -90,15 +92,7 @@ export default function AlumnoPage() {
                 const failed = grade < 6;
                 return (
                   <div key={s.slug} className={styles.subjRow}>
-                    <span className={styles.subjName}>
-                      {s.name}
-                      {EDITED.has(s.slug) && (
-                        <span
-                          className={styles.editDot}
-                          title="Editado manualmente"
-                        />
-                      )}
-                    </span>
+                    <span className={styles.subjName}>{s.name}</span>
                     <span className={styles.subjTrack}>
                       <span
                         className={styles.subjFill}

@@ -72,6 +72,25 @@ git push
 > **Build Command** = `npm install && npm run build`, **Start Command** =
 > `npm start`. Guarda y vuelve a desplegar con "Clear build cache & deploy".
 
+#### ⚠️ Asegura la base de datos (que no diga `store: file`)
+
+Abre `https://tu-backend.onrender.com/api/health`:
+
+- Si dice `"store":"postgres"` → perfecto, los datos son permanentes.
+- Si dice `"store":"file"` → **los datos se borran en cada reinicio**. Crea
+  Postgres así:
+  1. En Render: **New → Postgres** (plan Free) → **Create Database**. Espera a
+     que quede "Available".
+  2. En la página de la base, copia el **Internal Database URL**.
+  3. Abre tu servicio `tiza-server` → **Environment** → **Add Environment
+     Variable**: Key `DATABASE_URL`, Value = ese Internal URL.
+  4. Agrega también `JWT_SECRET` con cualquier texto largo y aleatorio (para que
+     las sesiones no se invaliden en cada deploy).
+  5. Guarda. Render reinicia y `/api/health` debe decir `"store":"postgres"`.
+
+  > Al cambiar de `file` a `postgres` empiezas con datos limpios (hay que
+  > registrarse de nuevo). Hazlo **antes** de capturar información real.
+
 ### Paso 2 — Frontend en Vercel
 
 1. Entra a [vercel.com](https://vercel.com) → **Add New → Project** e importa
@@ -95,16 +114,22 @@ datos en Render, todo sincronizado.
 
 ---
 
-## Descargas
+## Descargas (todas en PDF/CSV, extensiones estándar)
 
-- **Respaldo `.json`** y **CSV**: botón *Descargar respaldo* en la barra lateral
-  (dentro de un grupo). El `.json` se abre en cualquier editor; el `.csv` en
-  Excel o Google Sheets.
-- **PDF del alumno**: botón *Generar PDF del alumno* en la ficha de cada alumno.
+Por alumno (ficha del alumno):
+- **Boleta oficial (PDF)** — formato SEP con campos formativos, promedio final,
+  asistencia, observaciones y firmas.
+- **Concentrado (PDF)** — desglose Examen / Trabajo en aula / Tareas →
+  calificación con decimal y final, por campo formativo.
 
-Todas se generan en el navegador con extensiones estándar, así que funcionan
+Del grupo (botón *Descargar del grupo* en la barra lateral):
+- **Boletas de todo el grupo (PDF)** — una boleta por alumno en un solo archivo.
+- **Respaldo en CSV** — tabla de calificaciones para Excel o Google Sheets.
+
+Los datos siempre se guardan en la base de datos (nube); las descargas son
+reportes/backup adicionales. Se generan en el navegador, así que funcionan
 aunque el backend esté dormido (el plan gratis de Render suspende el servicio
-tras inactividad; la primera petición después tarda ~30 s en despertar).
+tras inactividad; la primera petición tarda ~30 s en despertar).
 
 ---
 

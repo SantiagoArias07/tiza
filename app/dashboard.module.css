@@ -75,14 +75,13 @@
   margin-bottom: 10px;
 }
 
-/* Group grid */
-.groupGrid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+/* Rich group cards, stacked so a single group still fills the space */
+.groupList {
+  display: flex;
+  flex-direction: column;
   gap: 16px;
 }
 .groupCard {
-  text-align: left;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--r-card-lg);
@@ -97,59 +96,103 @@
 }
 .band {
   background: var(--primary);
-  padding: 20px 22px;
+  padding: 22px 26px;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
 }
 .bandTitle {
-  font-size: 22px;
+  font-size: 25px;
   font-weight: 800;
   color: #f5f2eb;
 }
 .bandSub {
-  font-size: 13px;
+  font-size: 13.5px;
   color: rgba(233, 237, 240, 0.65);
-  margin-top: 4px;
+  margin-top: 5px;
 }
 .badge {
   display: inline-flex;
   align-items: center;
-  padding: 6px 11px;
+  padding: 7px 13px;
   background: var(--accent);
-  border-radius: 8px;
-  font-size: 12px;
+  border-radius: 9px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--accent-ink);
   white-space: nowrap;
 }
-.cardFooter {
-  padding: 14px 22px;
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+}
+.metric {
+  padding: 20px 24px;
+  border-right: 1px solid var(--border-2);
+}
+.metric[data-last="true"] {
+  border-right: none;
+}
+.metricLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-2);
+}
+.metricValue {
+  font-size: 28px;
+  font-weight: 800;
+  margin-top: 6px;
+  letter-spacing: -0.02em;
+}
+.metricValue[data-tone="ink"] {
+  color: var(--ink);
+}
+.metricValue[data-tone="slate"] {
+  color: var(--slate);
+}
+.metricValue[data-tone="risk"] {
+  color: var(--risk);
+}
+.metricValue[data-tone="ok"] {
+  color: var(--ok);
+}
+
+.footer {
+  padding: 14px 26px;
+  border-top: 1px solid var(--border-2);
+  background: var(--bg-subtle);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: var(--bg-subtle);
+  gap: 12px;
 }
-.footStat {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 13px;
-  font-weight: 600;
+.footerNote {
+  font-size: 12.5px;
   color: var(--muted);
 }
-.footCta {
+.cta {
   font-size: 13.5px;
   font-weight: 700;
   color: var(--primary);
 }
 
 @media (max-width: 720px) {
-  .groupGrid {
-    grid-template-columns: 1fr;
-  }
   .greeting {
     font-size: 23px;
+  }
+  .metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .metric:nth-child(1),
+  .metric:nth-child(2) {
+    border-bottom: 1px solid var(--border-2);
+  }
+  .metric:nth-child(2) {
+    border-right: none;
+  }
+  .band {
+    flex-direction: column;
   }
 }

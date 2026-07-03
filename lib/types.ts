@@ -73,6 +73,9 @@ export interface GroupMeta {
   cycle: string;
   trimester: string;
   studentCount: number;
+  avg: number;
+  risk: number;
+  attendance: number;
 }
 
 export function emptyState(): GroupState {
