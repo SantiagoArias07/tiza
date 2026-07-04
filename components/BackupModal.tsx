@@ -12,7 +12,6 @@ export function BackupModal({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
   if (!activeGroup) return null;
   const data = activeGroup;
-  const cells = activeGroup.state.cells;
   const teacher = user?.name ?? "Docente";
 
   return (
@@ -51,7 +50,7 @@ export function BackupModal({ onClose }: { onClose: () => void }) {
         <button
           className={styles.option}
           onClick={() => {
-            downloadBoletaCsv(data, cells);
+            downloadBoletaCsv(data);
             onClose();
           }}
         >
