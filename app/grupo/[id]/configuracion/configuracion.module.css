@@ -274,6 +274,38 @@
 .deleteBtn:hover {
   filter: brightness(0.96);
 }
+.deleteBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.confirmBox {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.confirmPrompt {
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.confirmPrompt strong {
+  color: var(--risk);
+  font-weight: 800;
+}
+.confirmInput {
+  width: 100%;
+  max-width: 280px;
+  padding: 9px 12px;
+  border: 1px solid var(--border-3);
+  border-radius: 9px;
+  background: var(--bg-subtle);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.confirmInput:focus {
+  border-color: var(--risk);
+  background: var(--bg-card);
+}
 .confirmRow {
   display: flex;
   align-items: center;
@@ -299,4 +331,34 @@
   .critRow {
     gap: 10px;
   }
+}
+
+.critInput {
+  flex: 1;
+  padding: 8px 11px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+  transition: border-color 0.12s, background 0.12s;
+}
+.critInput:focus {
+  border-color: #41607b;
+  background: var(--bg-card);
+}
+.critRow {
+  gap: 10px;
+}
+.materiaDot {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 800;
 }

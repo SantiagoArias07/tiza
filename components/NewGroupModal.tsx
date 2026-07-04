@@ -14,20 +14,18 @@ export function NewGroupModal({
     label: string;
     gradeLevel: string;
     cycle: string;
-    trimester: string;
   }) => Promise<void>;
 }) {
   const [label, setLabel] = useState("");
   const [gradeLevel, setGradeLevel] = useState("Primaria");
   const [cycle, setCycle] = useState("2025–2026");
-  const [trimester, setTrimester] = useState("1er trimestre");
   const [busy, setBusy] = useState(false);
 
   async function submit() {
     if (!label.trim() || busy) return;
     setBusy(true);
     try {
-      await onCreate({ label: label.trim(), gradeLevel, cycle, trimester });
+      await onCreate({ label: label.trim(), gradeLevel, cycle });
     } catch {
       setBusy(false);
     }
@@ -77,19 +75,9 @@ export function NewGroupModal({
             />
           </label>
         </div>
-
-        <label className={styles.field}>
-          <span className={styles.label}>Trimestre</span>
-          <select
-            className={styles.input}
-            value={trimester}
-            onChange={(e) => setTrimester(e.target.value)}
-          >
-            <option>1er trimestre</option>
-            <option>2° trimestre</option>
-            <option>3er trimestre</option>
-          </select>
-        </label>
+        <p className={styles.periodsNote}>
+          Los periodos de evaluación se configuran después (por defecto 3).
+        </p>
       </div>
 
       <div className={styles.footer}>

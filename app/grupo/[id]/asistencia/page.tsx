@@ -5,22 +5,14 @@ import { useGroup } from "@/lib/store";
 import { attKey, attendancePct } from "@/lib/calc";
 import type { AttStatus } from "@/lib/types";
 import { PageHeader } from "@/components/ui";
+import { ChevronIcon } from "@/components/icons";
 import styles from "./asistencia.module.css";
 
 const WEEK = ["L", "M", "M", "J", "V", "S", "D"];
-const MONTH_DAYS = 28; // February 2026
-const FIRST_WEEKDAY = 6; // Feb 1 2026 is a Sunday → index 6 (L=0…D=6)
-
-function dayStr(d: number) {
-  return `2026-02-${String(d).padStart(2, "0")}`;
-}
-function weekdayIndex(d: number) {
-  return (FIRST_WEEKDAY + (d - 1)) % 7;
-}
-function isSchoolDay(d: number) {
-  const w = weekdayIndex(d);
-  return w < 5; // Mon–Fri
-}
+const MONTHS = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
 
 const SEGMENTS: { key: AttStatus; glyph: string; tone: string }[] = [
   { key: "P", glyph: "✓", tone: "ok" },
@@ -28,22 +20,54 @@ const SEGMENTS: { key: AttStatus; glyph: string; tone: string }[] = [
   { key: "A", glyph: "✗", tone: "risk" },
 ];
 
+function pad(n: number) {
+  return String(n).padStart(2, "0");
+}
+/** Monday-first weekday index (0=Mon … 6=Sun). */
+function mondayIndex(year: number, month: number, day: number) {
+  return (new Date(year, month, day).getDay() + 6) % 7;
+}
+
 export default function AsistenciaPage() {
   const { data, attendance, setAtt, umbral } = useGroup();
-  const [selected, setSelected] = useState(9);
+
+  const today = useMemo(() => new Date(), []);
+  const [year, setYear] = useState(today.getFullYear());
+  const [month, setMonth] = useState(today.getMonth());
+  const [selected, setSelected] = useState(today.getDate());
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstIdx = mondayIndex(year, month, 1);
+  const dayStr = (d: number) => `${year}-${pad(month + 1)}-${pad(d)}`;
+  const isSchool = (d: number) => mondayIndex(year, month, d) < 5;
 
   const schoolDays = useMemo(() => {
     const out: string[] = [];
-    for (let d = 1; d <= MONTH_DAYS; d++) if (isSchoolDay(d)) out.push(dayStr(d));
+    for (let d = 1; d <= daysInMonth; d++) if (isSchool(d)) out.push(dayStr(d));
     return out;
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [year, month, daysInMonth]);
+
+  const goMonth = (delta: number) => {
+    const dt = new Date(year, month + delta, 1);
+    setYear(dt.getFullYear());
+    setMonth(dt.getMonth());
+    setSelected(1);
+  };
+  const goToday = () => {
+    setYear(today.getFullYear());
+    setMonth(today.getMonth());
+    setSelected(today.getDate());
+  };
 
   const selStr = dayStr(selected);
-  const dayLabel = new Date(2026, 1, selected).toLocaleDateString("es-MX", {
+  const dayLabel = new Date(year, month, selected).toLocaleDateString("es-MX", {
     weekday: "long",
     day: "numeric",
     month: "long",
   });
+  const isToday = (d: number) =>
+    d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
 
   const counts = data.students.reduce(
     (acc, s) => {
@@ -63,7 +87,21 @@ export default function AsistenciaPage() {
 
       <div className={styles.grid}>
         <div className={styles.calendar}>
-          <div className={styles.calHeader}>Febrero 2026</div>
+          <div className={styles.calNav}>
+            <button className={styles.calNavBtn} onClick={() => goMonth(-1)} aria-label="Mes anterior">
+              <ChevronIcon size={16} style={{ transform: "rotate(180deg)" }} />
+            </button>
+            <span className={styles.monthLabel}>
+              {MONTHS[month]} {year}
+            </span>
+            <button className={styles.calNavBtn} onClick={() => goMonth(1)} aria-label="Mes siguiente">
+              <ChevronIcon size={16} />
+            </button>
+          </div>
+          <button className={styles.todayBtn} onClick={goToday}>
+            Ir a hoy
+          </button>
+
           <div className={styles.weekRow}>
             {WEEK.map((w, i) => (
               <span key={i} className={styles.weekday} data-weekend={i > 4}>
@@ -72,18 +110,19 @@ export default function AsistenciaPage() {
             ))}
           </div>
           <div className={styles.days}>
-            {Array.from({ length: FIRST_WEEKDAY }).map((_, i) => (
+            {Array.from({ length: firstIdx }).map((_, i) => (
               <span key={`pad-${i}`} />
             ))}
-            {Array.from({ length: MONTH_DAYS }).map((_, i) => {
+            {Array.from({ length: daysInMonth }).map((_, i) => {
               const d = i + 1;
-              const school = isSchoolDay(d);
+              const school = isSchool(d);
               return (
                 <button
                   key={d}
                   className={styles.day}
                   data-school={school}
-                  data-selected={school && d === selected}
+                  data-selected={d === selected}
+                  data-today={isToday(d)}
                   disabled={!school}
                   onClick={() => school && setSelected(d)}
                 >
@@ -93,7 +132,7 @@ export default function AsistenciaPage() {
             })}
           </div>
           <p className={styles.calNote}>
-            Se marca alerta al alcanzar {umbral} faltas en el trimestre.
+            Se marca alerta al alcanzar {umbral} faltas en el mes.
           </p>
         </div>
 
@@ -108,6 +147,11 @@ export default function AsistenciaPage() {
           </div>
 
           <div className={styles.list}>
+            {data.students.length === 0 && (
+              <p className={styles.emptyList}>
+                Agrega alumnos en Configuración para pasar lista.
+              </p>
+            )}
             {data.students.map((s) => {
               const status = attendance[attKey(selStr, s.id)] ?? "P";
               const att = attendancePct(s.id, schoolDays, attendance);

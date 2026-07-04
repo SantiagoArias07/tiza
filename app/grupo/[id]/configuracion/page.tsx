@@ -7,8 +7,6 @@ import { PageHeader } from "@/components/ui";
 import { PlusIcon, TrashIcon } from "@/components/icons";
 import styles from "./configuracion.module.css";
 
-const RUBRO_NAMES = ["Actividades en clase", "Actividades en casa", "Examen"];
-
 export default function ConfiguracionPage() {
   const {
     data,
@@ -22,12 +20,23 @@ export default function ConfiguracionPage() {
     removeStudent,
     renameStudent,
     renameGroup,
+    setRubroName,
+    addRubro,
+    removeRubro,
+    setSubjectName,
+    addSubject,
+    removeSubject,
   } = useGroup();
   const { deleteGroup } = useStore();
   const router = useRouter();
 
   const [newStudent, setNewStudent] = useState("");
+  const [newCriterio, setNewCriterio] = useState("");
+  const [newMateria, setNewMateria] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteText, setDeleteText] = useState("");
+
+  const rubros = data.subjects[0]?.rubros ?? [];
 
   const sum = crit.reduce((a, b) => a + b, 0);
   const sumTone = sum === 100 ? "ok" : sum < 100 ? "warn" : "risk";
@@ -137,10 +146,18 @@ export default function ConfiguracionPage() {
 
       <section className={styles.card}>
         <h2 className={styles.cardTitle}>Criterios de evaluación</h2>
+        <p className={styles.umbralNote}>
+          Aplican a todas las materias. El &quot;Examen&quot; se califica por
+          aciertos.
+        </p>
         <div className={styles.criteria}>
-          {RUBRO_NAMES.map((name, i) => (
-            <div key={name} className={styles.critRow}>
-              <span className={styles.critName}>{name}</span>
+          {rubros.map((r, i) => (
+            <div key={i} className={styles.critRow}>
+              <input
+                className={styles.critInput}
+                value={r.name}
+                onChange={(e) => setRubroName(i, e.target.value)}
+              />
               <div className={styles.stepper}>
                 <button className={styles.stepBtn} onClick={() => stepCrit(i, -5)}>
                   −
@@ -150,8 +167,42 @@ export default function ConfiguracionPage() {
                   +
                 </button>
               </div>
+              <button
+                className={styles.removeBtn}
+                title="Quitar criterio"
+                disabled={rubros.length <= 1}
+                onClick={() => removeRubro(i)}
+              >
+                <TrashIcon size={15} />
+              </button>
             </div>
           ))}
+        </div>
+
+        <div className={styles.addRow}>
+          <input
+            className={styles.addInput}
+            value={newCriterio}
+            placeholder="Nuevo criterio (ej. Participación)"
+            onChange={(e) => setNewCriterio(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && newCriterio.trim()) {
+                addRubro(newCriterio);
+                setNewCriterio("");
+              }
+            }}
+          />
+          <button
+            className={styles.addBtn}
+            disabled={!newCriterio.trim()}
+            onClick={() => {
+              addRubro(newCriterio);
+              setNewCriterio("");
+            }}
+          >
+            <PlusIcon size={16} />
+            Agregar
+          </button>
         </div>
 
         <div className={styles.sumTrack}>
@@ -168,6 +219,62 @@ export default function ConfiguracionPage() {
               {sum < 100 ? " · faltan puntos" : " · excede 100%"}
             </span>
           )}
+        </div>
+      </section>
+
+      <section className={styles.card}>
+        <h2 className={styles.cardTitle}>
+          Materias <span className={styles.count}>{data.subjects.length}</span>
+        </h2>
+        <div className={styles.addRow}>
+          <input
+            className={styles.addInput}
+            value={newMateria}
+            placeholder="Nueva materia o campo formativo"
+            onChange={(e) => setNewMateria(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && newMateria.trim()) {
+                addSubject(newMateria);
+                setNewMateria("");
+              }
+            }}
+          />
+          <button
+            className={styles.addBtn}
+            disabled={!newMateria.trim()}
+            onClick={() => {
+              addSubject(newMateria);
+              setNewMateria("");
+            }}
+          >
+            <PlusIcon size={16} />
+            Agregar
+          </button>
+        </div>
+        <div className={styles.students}>
+          {data.subjects.map((s) => (
+            <div key={s.slug} className={styles.studentRow}>
+              <span
+                className={styles.materiaDot}
+                style={{ background: s.bg, color: s.fg }}
+              >
+                {s.initial}
+              </span>
+              <input
+                className={styles.studentInput}
+                value={s.name}
+                onChange={(e) => setSubjectName(s.slug, e.target.value)}
+              />
+              <button
+                className={styles.removeBtn}
+                title="Quitar materia"
+                disabled={data.subjects.length <= 1}
+                onClick={() => removeSubject(s.slug)}
+              >
+                <TrashIcon size={16} />
+              </button>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -201,23 +308,39 @@ export default function ConfiguracionPage() {
           deshacer.
         </p>
         {confirmDelete ? (
-          <div className={styles.confirmRow}>
-            <span className={styles.confirmText}>¿Seguro?</span>
-            <button
-              className={styles.deleteBtn}
-              onClick={async () => {
-                await deleteGroup(data.id);
-                router.push("/");
-              }}
-            >
-              Sí, eliminar
-            </button>
-            <button
-              className={styles.cancelBtn}
-              onClick={() => setConfirmDelete(false)}
-            >
-              Cancelar
-            </button>
+          <div className={styles.confirmBox}>
+            <p className={styles.confirmPrompt}>
+              Escribe <strong>{data.label}</strong> para confirmar.
+            </p>
+            <input
+              className={styles.confirmInput}
+              value={deleteText}
+              autoFocus
+              placeholder={data.label}
+              onChange={(e) => setDeleteText(e.target.value)}
+            />
+            <div className={styles.confirmRow}>
+              <button
+                className={styles.deleteBtn}
+                disabled={deleteText.trim() !== data.label}
+                onClick={async () => {
+                  await deleteGroup(data.id);
+                  router.push("/");
+                }}
+              >
+                <TrashIcon size={16} />
+                Eliminar permanentemente
+              </button>
+              <button
+                className={styles.cancelBtn}
+                onClick={() => {
+                  setConfirmDelete(false);
+                  setDeleteText("");
+                }}
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         ) : (
           <button

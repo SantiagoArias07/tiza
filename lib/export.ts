@@ -105,65 +105,69 @@ function drawConcentrado(
   teacher: string
 ) {
   const W = doc.internal.pageSize.getWidth();
-  const mx = 32;
-  let y = 44;
+  const H = doc.internal.pageSize.getHeight();
+  const mx = 40;
+  let y = 56;
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(15);
+  doc.setFontSize(19);
   doc.setTextColor(INK);
   doc.text("CONCENTRADO DE CALIFICACIONES", W / 2, y, { align: "center" });
-  y += 14;
+  y += 18;
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9.5);
+  doc.setFontSize(11);
   doc.setTextColor(MUTED);
   doc.text(`Ciclo escolar ${group.cycle}`, W / 2, y, { align: "center" });
 
-  y += 24;
-  doc.setFontSize(11);
+  y += 34;
+  doc.setFontSize(13);
   doc.setTextColor(INK);
   doc.setFont("helvetica", "bold");
   doc.text("Alumno(a):", mx, y);
   doc.setFont("helvetica", "normal");
-  doc.text(student.name, mx + 62, y);
+  doc.text(student.name, mx + 82, y);
   doc.setFont("helvetica", "bold");
-  doc.text(group.label, W - mx, y, { align: "right" });
+  doc.text(`${group.label} · ${group.gradeLevel}`, W - mx, y, { align: "right" });
 
-  y += 16;
+  y += 22;
 
   const periods = Math.max(1, group.periodCount || 1);
   const subCols = ["Ex", "Trab", "Tar", "Dec", "Fin"];
-  const nameW = 150;
+  const nameW = 190;
   const avail = W - mx * 2 - nameW;
   const groupW = avail / periods;
   const cellW = groupW / subCols.length;
-  const headH1 = 18;
-  const headH2 = 16;
-  const rowH = 20;
+  const headH1 = 26;
+  const headH2 = 22;
+
+  // Size rows so the whole table reaches roughly 3/4 of the page height.
+  const bottomReserve = 70;
+  const tableBottom = y + (H - bottomReserve - y) * 0.92;
+  const nRows = Math.max(group.subjects.length, 1);
+  const rowH = Math.max(30, Math.min(58, (tableBottom - (y + headH1 + headH2)) / nRows));
 
   // Header row 1: period group labels
-  let x = mx;
   doc.setDrawColor(BORDER);
   doc.setFillColor(HEAD_BG);
   doc.rect(mx, y, nameW, headH1 + headH2, "FD");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
+  doc.setFontSize(11);
   doc.setTextColor(SLATE);
-  doc.text("Materia / Campo", mx + 6, y + headH1 + headH2 / 2 + 3);
-  x = mx + nameW;
+  doc.text("Materia / Campo", mx + 10, y + headH1 + headH2 / 2 + 3);
+  let x = mx + nameW;
   for (let p = 0; p < periods; p++) {
     doc.setFillColor(HEAD_BG);
     doc.rect(x, y, groupW, headH1, "FD");
-    doc.setFontSize(8.5);
+    doc.setFontSize(11);
     doc.setTextColor(SLATE);
-    doc.text(`Periodo ${p + 1}`, x + groupW / 2, y + 12, { align: "center" });
-    // sub columns
+    doc.text(`Periodo ${p + 1}`, x + groupW / 2, y + 17, { align: "center" });
     let sx = x;
     subCols.forEach((sc) => {
       doc.setFillColor(HEAD_BG);
       doc.rect(sx, y + headH1, cellW, headH2, "FD");
-      doc.setFontSize(7);
+      doc.setFontSize(8.5);
       doc.setTextColor(MUTED);
-      doc.text(sc, sx + cellW / 2, y + headH1 + 11, { align: "center" });
+      doc.text(sc, sx + cellW / 2, y + headH1 + 15, { align: "center" });
       sx += cellW;
     });
     x += groupW;
@@ -171,13 +175,13 @@ function drawConcentrado(
   y += headH1 + headH2;
 
   // Rows: subjects
-  doc.setFontSize(8.5);
   group.subjects.forEach((subject) => {
     doc.setDrawColor(BORDER);
     doc.rect(mx, y, nameW, rowH);
     doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
     doc.setTextColor(INK);
-    doc.text(subject.name, mx + 6, y + rowH / 2 + 3, { maxWidth: nameW - 10 });
+    doc.text(subject.name, mx + 10, y + rowH / 2 + 4, { maxWidth: nameW - 16 });
     let cx = mx + nameW;
     for (let p = 0; p < periods; p++) {
       const b = breakdown(group, subject, student.id, p);
@@ -193,8 +197,8 @@ function drawConcentrado(
         doc.rect(sx, y, cellW, rowH);
         doc.setFont("helvetica", i >= 3 ? "bold" : "normal");
         doc.setTextColor(i === 3 && b.decimal < 6 ? RISK : i >= 3 ? INK : SLATE);
-        doc.setFontSize(i >= 3 ? 8.5 : 8);
-        doc.text(v, sx + cellW / 2, y + rowH / 2 + 3, { align: "center" });
+        doc.setFontSize(i >= 3 ? 12 : 10.5);
+        doc.text(v, sx + cellW / 2, y + rowH / 2 + 4, { align: "center" });
         sx += cellW;
       });
       cx += groupW;
@@ -202,20 +206,18 @@ function drawConcentrado(
     y += rowH;
   });
 
-  y += 8;
+  y += 16;
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
+  doc.setFontSize(9);
   doc.setTextColor(MUTED);
   doc.text(
     "Ex = Examen · Trab = Trabajo en aula · Tar = Tareas · Dec = Calif. con decimal · Fin = Calif. final",
     mx,
     y
   );
-
-  y += 22;
   doc.setFontSize(10);
   doc.setTextColor(SLATE);
-  doc.text(`Mtro(a). ${teacher}`, mx, y);
+  doc.text(`Mtro(a). ${teacher}`, W - mx, y, { align: "right" });
 }
 
 export function downloadStudentConcentrado(

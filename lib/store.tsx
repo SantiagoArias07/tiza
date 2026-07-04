@@ -12,7 +12,7 @@ import {
 import { usePathname } from "next/navigation";
 import { useAuth } from "./auth";
 import * as api from "./api";
-import { extraKey } from "./data";
+import { cellKey, extraKey } from "./data";
 import { emptyState } from "./types";
 import type {
   Activity,
@@ -85,10 +85,48 @@ interface StoreValue {
     rubroIdx: number,
     activity: Activity
   ) => void;
+  removeActivity: (
+    period: number,
+    subjectSlug: string,
+    rubroIdx: number,
+    templateCount: number,
+    extraIndex: number
+  ) => void;
   addStudent: (name: string) => void;
   removeStudent: (studentId: number) => void;
   renameStudent: (studentId: number, name: string) => void;
   renameGroup: (label: string) => void;
+  // Criterios (rubros) — shared across all subjects
+  setRubroName: (index: number, name: string) => void;
+  addRubro: (name: string) => void;
+  removeRubro: (index: number) => void;
+  // Materias (subjects)
+  setSubjectName: (slug: string, name: string) => void;
+  addSubject: (name: string) => void;
+  removeSubject: (slug: string) => void;
+}
+
+const SUBJECT_COLORS: Array<[string, string]> = [
+  ["#E5ECF1", "#41607B"],
+  ["#E6EFE6", "#5E8A57"],
+  ["#F2E8E3", "#B07A5E"],
+  ["#EDE7DC", "#7A6A4E"],
+  ["#E5EFEC", "#4E8A78"],
+  ["#EAEAF0", "#6A6A86"],
+  ["#F1E9F0", "#876A86"],
+  ["#F3EFE0", "#9A8A3E"],
+];
+
+function slugify(name: string, taken: string[]): string {
+  const bare = name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")    .replace(/[^a-z0-9]/g, "");
+  const base = bare || "materia";
+  let slug = base;
+  let n = 1;
+  while (taken.includes(slug)) slug = `${base}${++n}`;
+  return slug;
 }
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -325,6 +363,49 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [patchState]
   );
 
+  const removeActivity = useCallback(
+    (
+      period: number,
+      subjectSlug: string,
+      rubroIdx: number,
+      templateCount: number,
+      extraIndex: number
+    ) =>
+      updateActive((doc) => {
+        const ek = extraKey(period, subjectSlug, rubroIdx);
+        const arr = [...(doc.state.extraActivities[ek] ?? [])];
+        if (extraIndex < 0 || extraIndex >= arr.length) return doc;
+        arr.splice(extraIndex, 1);
+        const gi = templateCount + extraIndex; // removed global index
+        const oldTotal = templateCount + arr.length + 1;
+        const cells = { ...doc.state.cells };
+        const notes = { ...doc.state.notes };
+        for (const st of doc.students) {
+          for (let ai = gi; ai < oldTotal - 1; ai++) {
+            const cur = cellKey(period, subjectSlug, rubroIdx, ai, st.id);
+            const nxt = cellKey(period, subjectSlug, rubroIdx, ai + 1, st.id);
+            if (nxt in cells) cells[cur] = cells[nxt];
+            else delete cells[cur];
+            if (nxt in notes) notes[cur] = notes[nxt];
+            else delete notes[cur];
+          }
+          const last = cellKey(period, subjectSlug, rubroIdx, oldTotal - 1, st.id);
+          delete cells[last];
+          delete notes[last];
+        }
+        return {
+          ...doc,
+          state: {
+            ...doc.state,
+            extraActivities: { ...doc.state.extraActivities, [ek]: arr },
+            cells,
+            notes,
+          },
+        };
+      }),
+    [updateActive]
+  );
+
   const addStudent = useCallback(
     (name: string) =>
       updateActive((doc) => {
@@ -363,6 +444,140 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [updateActive]
   );
 
+  // ---- Criterios (rubros), shared across all subjects -------------------
+  const setRubroName = useCallback(
+    (index: number, name: string) =>
+      updateActive((doc) => ({
+        ...doc,
+        subjects: doc.subjects.map((s) => ({
+          ...s,
+          rubros: s.rubros.map((r, i) => (i === index ? { ...r, name } : r)),
+        })),
+      })),
+    [updateActive]
+  );
+
+  const addRubro = useCallback(
+    (name: string) =>
+      updateActive((doc) => ({
+        ...doc,
+        subjects: doc.subjects.map((s) => ({
+          ...s,
+          rubros: [...s.rubros, { name: name.trim() || "Nuevo criterio", pct: 0, activities: [] }],
+        })),
+        state: { ...doc.state, crit: [...doc.state.crit, 0] },
+      })),
+    [updateActive]
+  );
+
+  const removeRubro = useCallback(
+    (index: number) =>
+      updateActive((doc) => {
+        // Reindex all grade keys that reference a rubro index > `index`.
+        const shiftKey = (key: string, rubroPos: number) => {
+          const parts = key.split("-");
+          const ri = parseInt(parts[rubroPos], 10);
+          if (ri === index) return null; // drop
+          if (ri > index) parts[rubroPos] = String(ri - 1);
+          return parts.join("-");
+        };
+        const remap = (
+          src: Record<string, unknown>,
+          rubroPos: number
+        ): Record<string, unknown> => {
+          const out: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(src)) {
+            const nk = shiftKey(k, rubroPos);
+            if (nk) out[nk] = v;
+          }
+          return out;
+        };
+        const st = doc.state;
+        return {
+          ...doc,
+          subjects: doc.subjects.map((s) => ({
+            ...s,
+            rubros: s.rubros.filter((_, i) => i !== index),
+          })),
+          state: {
+            ...st,
+            crit: st.crit.filter((_, i) => i !== index),
+            // cells/notes: `${p}-${slug}-${ri}-${ai}-${sid}` → rubro at pos 2
+            cells: remap(st.cells, 2) as typeof st.cells,
+            notes: remap(st.notes, 2) as typeof st.notes,
+            // extraActivities: `${p}-${slug}-${ri}` → rubro at pos 2
+            extraActivities: remap(st.extraActivities, 2) as typeof st.extraActivities,
+            // rubro overrides: `r-${p}-${slug}-${ri}-${sid}` → rubro at pos 3
+            overrides: Object.fromEntries(
+              Object.entries(st.overrides).flatMap(([k, v]) => {
+                if (!k.startsWith("r-")) return [[k, v]];
+                const nk = shiftKey(k, 3);
+                return nk ? [[nk, v]] : [];
+              })
+            ),
+          },
+        };
+      }),
+    [updateActive]
+  );
+
+  // ---- Materias (subjects) ---------------------------------------------
+  const setSubjectName = useCallback(
+    (slug: string, name: string) =>
+      updateActive((doc) => ({
+        ...doc,
+        subjects: doc.subjects.map((s) =>
+          s.slug === slug ? { ...s, name, abbr: name.slice(0, 6) } : s
+        ),
+      })),
+    [updateActive]
+  );
+
+  const addSubject = useCallback(
+    (name: string) =>
+      updateActive((doc) => {
+        const slug = slugify(name, doc.subjects.map((s) => s.slug));
+        const color = SUBJECT_COLORS[doc.subjects.length % SUBJECT_COLORS.length];
+        // Mirror the existing rubro structure so crit stays consistent.
+        const rubros =
+          doc.subjects[0]?.rubros.map((r) => ({
+            name: r.name,
+            pct: r.pct,
+            kind: r.kind,
+            activities: r.activities.map((a) => ({ ...a })),
+          })) ?? [
+            { name: "Actividades en clase", pct: 40, activities: [] },
+            { name: "Actividades en casa", pct: 20, activities: [] },
+            { name: "Examen", pct: 40, kind: "exam" as const, activities: [] },
+          ];
+        return {
+          ...doc,
+          subjects: [
+            ...doc.subjects,
+            {
+              slug,
+              name: name.trim(),
+              abbr: name.trim().slice(0, 6),
+              initial: name.trim().charAt(0).toUpperCase(),
+              bg: color[0],
+              fg: color[1],
+              rubros,
+            },
+          ],
+        };
+      }),
+    [updateActive]
+  );
+
+  const removeSubject = useCallback(
+    (slug: string) =>
+      updateActive((doc) => ({
+        ...doc,
+        subjects: doc.subjects.filter((s) => s.slug !== slug),
+      })),
+    [updateActive]
+  );
+
   const value = useMemo<StoreValue>(
     () => ({
       groups,
@@ -387,10 +602,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setAcierto,
       setOverride,
       addActivity,
+      removeActivity,
       addStudent,
       removeStudent,
       renameStudent,
       renameGroup,
+      setRubroName,
+      addRubro,
+      removeRubro,
+      setSubjectName,
+      addSubject,
+      removeSubject,
     }),
     [
       groups,
@@ -414,10 +636,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setAcierto,
       setOverride,
       addActivity,
+      removeActivity,
       addStudent,
       removeStudent,
       renameStudent,
       renameGroup,
+      setRubroName,
+      addRubro,
+      removeRubro,
+      setSubjectName,
+      addSubject,
+      removeSubject,
     ]
   );
 
@@ -470,9 +699,16 @@ export function useGroup() {
     setAcierto: s.setAcierto,
     setOverride: s.setOverride,
     addActivity: s.addActivity,
+    removeActivity: s.removeActivity,
     addStudent: s.addStudent,
     removeStudent: s.removeStudent,
     renameStudent: s.renameStudent,
     renameGroup: s.renameGroup,
+    setRubroName: s.setRubroName,
+    addRubro: s.addRubro,
+    removeRubro: s.removeRubro,
+    setSubjectName: s.setSubjectName,
+    addSubject: s.addSubject,
+    removeSubject: s.removeSubject,
   };
 }

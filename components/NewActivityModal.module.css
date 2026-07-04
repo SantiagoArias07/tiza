@@ -107,3 +107,9 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+.periodsNote {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: -2px;
+}

@@ -150,7 +150,10 @@
   overflow-x: auto;
 }
 .table {
-  width: 100%;
+  /* content-sized with fixed column widths → columns never squeeze; the
+     table scrolls horizontally when there are many activities. */
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
 }
 .table thead th {
@@ -158,27 +161,61 @@
   font-size: 11px;
   font-weight: 700;
   color: var(--muted-2);
-  padding: 10px 6px;
+  padding: 8px 6px;
   border-bottom: 1px solid var(--border-3);
   vertical-align: bottom;
   text-align: center;
 }
 .nameHead {
   width: 200px;
+  min-width: 200px;
   text-align: left !important;
   padding-left: 18px !important;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 .actHead {
-  width: 62px;
-  line-height: 1.2;
+  width: 66px;
+  min-width: 66px;
+  max-width: 66px;
+  line-height: 1.15;
   font-weight: 600;
   text-transform: none;
   color: var(--muted);
 }
+.actHeadInner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.actName {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  max-width: 100%;
+}
+.delAct {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  color: var(--faint);
+  transition: background 0.12s, color 0.12s;
+}
+.delAct:hover {
+  background: var(--cell-risk-bg);
+  color: var(--risk);
+}
 .califHead {
-  width: 78px;
+  width: 92px;
+  min-width: 92px;
+  max-width: 92px;
   background: var(--bg-subtle-2) !important;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -199,15 +236,24 @@
   max-width: 200px;
 }
 .cell {
+  width: 66px;
+  min-width: 66px;
+  max-width: 66px;
   text-align: center;
   padding: 6px;
   border-bottom: 1px solid var(--border-4);
 }
 .calif {
+  width: 92px;
+  min-width: 92px;
+  max-width: 92px;
   text-align: center;
   background: var(--bg-subtle-2);
   border-bottom: 1px solid var(--border-4);
   padding: 4px;
+}
+.califPts {
+  white-space: nowrap;
 }
 .califBtn {
   position: relative;

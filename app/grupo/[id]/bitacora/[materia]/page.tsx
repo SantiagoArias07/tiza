@@ -27,7 +27,7 @@ import { PeriodTabs } from "@/components/PeriodTabs";
 import { StatusCell } from "@/components/StatusCell";
 import { NotePopover } from "@/components/NotePopover";
 import { NewActivityModal } from "@/components/NewActivityModal";
-import { ChevronIcon, PlusIcon } from "@/components/icons";
+import { ChevronIcon, PlusIcon, XIcon } from "@/components/icons";
 import styles from "./materia.module.css";
 
 interface PopState {
@@ -163,11 +163,35 @@ export default function MateriaPage() {
                     <thead>
                       <tr>
                         <th className={styles.nameHead}>Alumno</th>
-                        {subject.rubros[ri].activities.map((a, ai) => (
-                          <th key={ai} className={styles.actHead} title={a.name}>
-                            {a.name}
-                          </th>
-                        ))}
+                        {subject.rubros[ri].activities.map((a, ai) => {
+                          const templateCount =
+                            baseSubject!.rubros[ri].activities.length;
+                          const isExtra = ai >= templateCount;
+                          return (
+                            <th key={ai} className={styles.actHead} title={a.name}>
+                              <span className={styles.actHeadInner}>
+                                <span className={styles.actName}>{a.name}</span>
+                                {isExtra && (
+                                  <button
+                                    className={styles.delAct}
+                                    title="Eliminar actividad"
+                                    onClick={() =>
+                                      g.removeActivity(
+                                        period,
+                                        subject.slug,
+                                        ri,
+                                        templateCount,
+                                        ai - templateCount
+                                      )
+                                    }
+                                  >
+                                    <XIcon size={11} />
+                                  </button>
+                                )}
+                              </span>
+                            </th>
+                          );
+                        })}
                         <th className={styles.califHead}>Calif.</th>
                       </tr>
                     </thead>

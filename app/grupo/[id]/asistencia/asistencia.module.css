@@ -14,12 +14,53 @@
   box-shadow: var(--sh-rest);
   padding: 18px;
 }
-.calHeader {
+.calNav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.calNavBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--slate);
+  border: 1px solid var(--border-3);
+  background: var(--bg-subtle);
+  transition: background 0.12s;
+}
+.calNavBtn:hover {
+  background: var(--bg-subtle-2);
+}
+.monthLabel {
   font-size: 15px;
   font-weight: 800;
   color: var(--ink);
-  text-transform: capitalize;
-  margin-bottom: 14px;
+}
+.todayBtn {
+  display: block;
+  margin: 8px auto 12px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary);
+  background: var(--bg-subtle-2);
+  transition: background 0.12s;
+}
+.todayBtn:hover {
+  background: #eee7d8;
+}
+.day[data-today="true"] {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.emptyList {
+  padding: 20px;
+  font-size: 13.5px;
+  color: var(--muted);
 }
 .weekRow,
 .days {
