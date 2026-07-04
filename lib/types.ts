@@ -44,10 +44,15 @@ export interface Subject {
 /**
  * Mutable per-group state. Grade keys are period-prefixed. See lib/data.
  */
+export type RoundingMode = "half" | "sixty" | "none";
+
 export interface GroupState {
   cells: Record<string, CellStatus>;
   notes: Record<string, string>;
+  /** student status per period+day, key `${period}-${day}-${studentId}` */
   attendance: Record<string, AttStatus>;
+  /** days where lista was taken, key `${period}-${day}` */
+  attDays: Record<string, boolean>;
   privNotes: Record<string, string>;
   crit: number[];
   umbral: number;
@@ -66,6 +71,7 @@ export interface GroupDoc {
   cycle: string;
   trimester: string;
   periodCount: number;
+  rounding: RoundingMode;
   students: Student[];
   subjects: Subject[];
   state: GroupState;
@@ -92,6 +98,7 @@ export function emptyState(): GroupState {
     cells: {},
     notes: {},
     attendance: {},
+    attDays: {},
     privNotes: {},
     crit: [40, 20, 40],
     umbral: 3,

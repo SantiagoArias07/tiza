@@ -21,6 +21,7 @@ import type {
   GroupDoc,
   GroupMeta,
   GroupState,
+  RoundingMode,
 } from "./types";
 
 const CYCLE: CellStatus[] = ["complete", "incomplete", "missing"];
@@ -33,6 +34,7 @@ function normalizeDoc(doc: GroupDoc): GroupDoc {
   return {
     ...doc,
     periodCount: doc.periodCount && doc.periodCount > 0 ? doc.periodCount : 3,
+    rounding: doc.rounding ?? "half",
     students: Array.isArray(doc.students) ? doc.students : [],
     subjects: Array.isArray(doc.subjects) ? doc.subjects : [],
     state: { ...emptyState(), ...(doc.state ?? {}) },
@@ -71,10 +73,17 @@ interface StoreValue {
   // Active-group mutators
   cycleCell: (key: string) => void;
   setNote: (key: string, text: string) => void;
-  setAtt: (key: string, status: AttStatus) => void;
+  markAttendance: (
+    period: number,
+    day: string,
+    studentId: number,
+    status: AttStatus
+  ) => void;
+  registerDay: (period: number, day: string) => void;
   setPrivNote: (studentId: number, text: string) => void;
   setCrit: (next: number[]) => void;
   setUmbral: (n: number) => void;
+  setRounding: (mode: RoundingMode) => void;
   setPeriodCount: (n: number) => void;
   setExamTotal: (key: string, value: number) => void;
   setAcierto: (key: string, value: number) => void;
@@ -285,11 +294,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [patchState]
   );
 
-  const setAtt = useCallback(
-    (key: string, status: AttStatus) =>
+  const markAttendance = useCallback(
+    (period: number, day: string, studentId: number, status: AttStatus) =>
       patchState((s) => ({
         ...s,
-        attendance: { ...s.attendance, [key]: status },
+        attendance: {
+          ...s.attendance,
+          [`${period}-${day}-${studentId}`]: status,
+        },
+        attDays: { ...s.attDays, [`${period}-${day}`]: true },
+      })),
+    [patchState]
+  );
+
+  const registerDay = useCallback(
+    (period: number, day: string) =>
+      patchState((s) => ({
+        ...s,
+        attDays: { ...s.attDays, [`${period}-${day}`]: true },
       })),
     [patchState]
   );
@@ -311,6 +333,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const setUmbral = useCallback(
     (n: number) => patchState((s) => ({ ...s, umbral: n })),
     [patchState]
+  );
+
+  const setRounding = useCallback(
+    (mode: RoundingMode) => updateActive((doc) => ({ ...doc, rounding: mode })),
+    [updateActive]
   );
 
   const setPeriodCount = useCallback(
@@ -593,10 +620,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setActivePeriod,
       cycleCell,
       setNote,
-      setAtt,
+      markAttendance,
+      registerDay,
       setPrivNote,
       setCrit,
       setUmbral,
+      setRounding,
       setPeriodCount,
       setExamTotal,
       setAcierto,
@@ -627,10 +656,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       activePeriod,
       cycleCell,
       setNote,
-      setAtt,
+      markAttendance,
+      registerDay,
       setPrivNote,
       setCrit,
       setUmbral,
+      setRounding,
       setPeriodCount,
       setExamTotal,
       setAcierto,
@@ -690,10 +721,12 @@ export function useGroup() {
     sync: s.sync,
     cycleCell: s.cycleCell,
     setNote: s.setNote,
-    setAtt: s.setAtt,
+    markAttendance: s.markAttendance,
+    registerDay: s.registerDay,
     setPrivNote: s.setPrivNote,
     setCrit: s.setCrit,
     setUmbral: s.setUmbral,
+    setRounding: s.setRounding,
     setPeriodCount: s.setPeriodCount,
     setExamTotal: s.setExamTotal,
     setAcierto: s.setAcierto,

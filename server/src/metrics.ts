@@ -49,10 +49,13 @@ function subjectGradePeriod(
 ): number {
   const ov = doc.state.overrides[`s-${p}-${subject.slug}-${sid}`];
   if (typeof ov === "number") return ov;
+  const sum = doc.state.crit.reduce((a, b) => a + (b || 0), 0);
   let g = 0;
-  subject.rubros.forEach((r, ri) => {
-    const pct = doc.state.crit[ri] ?? r.pct;
-    g += rubroScore(doc, subject, ri, sid, p) * (pct / 100);
+  subject.rubros.forEach((_, ri) => {
+    const raw = doc.state.crit[ri] ?? 0;
+    const frac =
+      sum > 0 ? raw / sum : doc.state.crit.length ? 1 / doc.state.crit.length : 0;
+    g += rubroScore(doc, subject, ri, sid, p) * frac;
   });
   return g;
 }
@@ -70,14 +73,6 @@ function studentAverage(doc: GroupDoc, sid: number): number {
   return grades.reduce((a, b) => a + b, 0) / grades.length;
 }
 
-function schoolDays(): string[] {
-  const out: string[] = [];
-  for (let d = 1; d <= 28; d++) {
-    if ((6 + (d - 1)) % 7 < 5) out.push(`2026-02-${String(d).padStart(2, "0")}`);
-  }
-  return out;
-}
-
 export function computeMetrics(doc: GroupDoc): {
   avg: number;
   risk: number;
@@ -92,14 +87,19 @@ export function computeMetrics(doc: GroupDoc): {
     doc.subjects.some((subj) => subjectGradeCycle(doc, subj, s.id) < RISK_THRESHOLD)
   ).length;
 
-  const days = schoolDays();
+  // Attendance across all registered days of every period.
+  const dayKeys = Object.keys(doc.state.attDays).filter(
+    (k) => doc.state.attDays[k]
+  ); // `${period}-${day}`
   let present = 0;
+  let total = 0;
   for (const s of students) {
-    for (const d of days) {
-      const v = doc.state.attendance[`${d}-${s.id}`] ?? "P";
+    for (const pk of dayKeys) {
+      total++;
+      const v = doc.state.attendance[`${pk}-${s.id}`] ?? "P";
       if (v !== "A") present++;
     }
   }
-  const attendance = (present / (students.length * days.length)) * 100;
+  const attendance = total ? (present / total) * 100 : 100;
   return { avg, risk, attendance };
 }

@@ -1,11 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
 import { notFound, useParams } from "next/navigation";
 import { useGroup } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
 import {
-  attendancePct,
+  attendanceCycle,
   fmt,
   isAtRisk,
   subjectGrade,
@@ -15,26 +14,16 @@ import { downloadStudentBoleta, downloadStudentConcentrado } from "@/lib/export"
 import { FileTextIcon } from "@/components/icons";
 import styles from "./alumno.module.css";
 
-function schoolDaysFeb2026() {
-  const out: string[] = [];
-  const first = 6; // Feb 1 is Sunday
-  for (let d = 1; d <= 28; d++) {
-    if ((first + (d - 1)) % 7 < 5) out.push(`2026-02-${String(d).padStart(2, "0")}`);
-  }
-  return out;
-}
-
 export default function AlumnoPage() {
-  const { data, attendance, privNotes, setPrivNote, periodCount } = useGroup();
+  const { data, privNotes, setPrivNote, periodCount } = useGroup();
   const { user } = useAuth();
   const teacher = user?.name ?? "Docente";
   const params = useParams<{ alumnoId: string }>();
   const student = data.students.find((s) => String(s.id) === params.alumnoId);
   if (!student) notFound();
 
-  const days = useMemo(schoolDaysFeb2026, []);
   const risk = isAtRisk(data, student!.id);
-  const att = attendancePct(student!.id, days, attendance);
+  const att = attendanceCycle(data, student!.id);
 
   // Overall average per period.
   const perPeriod = Array.from({ length: periodCount }).map((_, p) => {
@@ -70,7 +59,7 @@ export default function AlumnoPage() {
         <div className={styles.pdfActions}>
           <button
             className={styles.pdfBtn}
-            onClick={() => downloadStudentBoleta(data, student!, attendance, teacher)}
+            onClick={() => downloadStudentBoleta(data, student!, teacher)}
           >
             <FileTextIcon size={17} />
             Boleta oficial
@@ -138,7 +127,7 @@ export default function AlumnoPage() {
             <div className={styles.attNum}>{att.pct.toFixed(0)}%</div>
             <p className={styles.attDetail}>
               {att.present} presentes · {att.delays} retardos · {att.absent}{" "}
-              faltas (de {days.length} días)
+              faltas (de {att.total} días registrados)
             </p>
           </div>
 

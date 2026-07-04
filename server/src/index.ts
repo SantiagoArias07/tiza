@@ -18,6 +18,7 @@ function normalize(doc: GroupDoc): GroupDoc {
   return {
     ...doc,
     periodCount: doc.periodCount && doc.periodCount > 0 ? doc.periodCount : 3,
+    rounding: doc.rounding ?? "half",
     students: Array.isArray(doc.students) ? doc.students : [],
     subjects: Array.isArray(doc.subjects) ? doc.subjects : [],
     state: { ...emptyState(), ...(doc.state ?? {}) },
@@ -175,6 +176,7 @@ app.put("/api/groups/:id", requireAuth, async (req: AuthedRequest, res) => {
       typeof body.periodCount === "number"
         ? body.periodCount
         : existing.periodCount ?? 3,
+    rounding: body.rounding ?? existing.rounding ?? "half",
     students: Array.isArray(body.students) ? body.students : existing.students,
     subjects: Array.isArray(body.subjects) ? body.subjects : existing.subjects,
     state: body.state ? { ...emptyState(), ...body.state } : existing.state,

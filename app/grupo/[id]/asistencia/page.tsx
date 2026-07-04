@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { useGroup } from "@/lib/store";
-import { attKey, attendancePct } from "@/lib/calc";
+import { attKey, attDayKey, attInDays, registeredDays } from "@/lib/calc";
 import type { AttStatus } from "@/lib/types";
 import { PageHeader } from "@/components/ui";
+import { PeriodTabs } from "@/components/PeriodTabs";
 import { ChevronIcon } from "@/components/icons";
 import styles from "./asistencia.module.css";
 
@@ -13,7 +14,6 @@ const MONTHS = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
-
 const SEGMENTS: { key: AttStatus; glyph: string; tone: string }[] = [
   { key: "P", glyph: "✓", tone: "ok" },
   { key: "R", glyph: "◑", tone: "warn" },
@@ -23,13 +23,14 @@ const SEGMENTS: { key: AttStatus; glyph: string; tone: string }[] = [
 function pad(n: number) {
   return String(n).padStart(2, "0");
 }
-/** Monday-first weekday index (0=Mon … 6=Sun). */
 function mondayIndex(year: number, month: number, day: number) {
   return (new Date(year, month, day).getDay() + 6) % 7;
 }
 
 export default function AsistenciaPage() {
-  const { data, attendance, setAtt, umbral } = useGroup();
+  const g = useGroup();
+  const { data, markAttendance, registerDay, umbral } = g;
+  const period = g.activePeriod;
 
   const today = useMemo(() => new Date(), []);
   const [year, setYear] = useState(today.getFullYear());
@@ -40,13 +41,6 @@ export default function AsistenciaPage() {
   const firstIdx = mondayIndex(year, month, 1);
   const dayStr = (d: number) => `${year}-${pad(month + 1)}-${pad(d)}`;
   const isSchool = (d: number) => mondayIndex(year, month, d) < 5;
-
-  const schoolDays = useMemo(() => {
-    const out: string[] = [];
-    for (let d = 1; d <= daysInMonth; d++) if (isSchool(d)) out.push(dayStr(d));
-    return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [year, month, daysInMonth]);
 
   const goMonth = (delta: number) => {
     const dt = new Date(year, month + delta, 1);
@@ -61,6 +55,8 @@ export default function AsistenciaPage() {
   };
 
   const selStr = dayStr(selected);
+  const regDays = registeredDays(data, period);
+  const dayRegistered = Boolean(data.state.attDays[attDayKey(period, selStr)]);
   const dayLabel = new Date(year, month, selected).toLocaleDateString("es-MX", {
     weekday: "long",
     day: "numeric",
@@ -68,10 +64,12 @@ export default function AsistenciaPage() {
   });
   const isToday = (d: number) =>
     d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+  const hasRecords = (d: number) =>
+    Boolean(data.state.attDays[attDayKey(period, dayStr(d))]);
 
   const counts = data.students.reduce(
     (acc, s) => {
-      const v = attendance[attKey(selStr, s.id)] ?? "P";
+      const v = data.state.attendance[attKey(period, selStr, s.id)] ?? "P";
       acc[v]++;
       return acc;
     },
@@ -82,8 +80,10 @@ export default function AsistenciaPage() {
     <div>
       <PageHeader
         title="Asistencia"
-        subtitle={`${data.label} · registra la asistencia diaria del grupo`}
+        subtitle={`${data.label} · pase de lista por periodo`}
       />
+
+      <PeriodTabs count={g.periodCount} active={period} onChange={g.setActivePeriod} />
 
       <div className={styles.grid}>
         <div className={styles.calendar}>
@@ -91,22 +91,16 @@ export default function AsistenciaPage() {
             <button className={styles.calNavBtn} onClick={() => goMonth(-1)} aria-label="Mes anterior">
               <ChevronIcon size={16} style={{ transform: "rotate(180deg)" }} />
             </button>
-            <span className={styles.monthLabel}>
-              {MONTHS[month]} {year}
-            </span>
+            <span className={styles.monthLabel}>{MONTHS[month]} {year}</span>
             <button className={styles.calNavBtn} onClick={() => goMonth(1)} aria-label="Mes siguiente">
               <ChevronIcon size={16} />
             </button>
           </div>
-          <button className={styles.todayBtn} onClick={goToday}>
-            Ir a hoy
-          </button>
+          <button className={styles.todayBtn} onClick={goToday}>Ir a hoy</button>
 
           <div className={styles.weekRow}>
             {WEEK.map((w, i) => (
-              <span key={i} className={styles.weekday} data-weekend={i > 4}>
-                {w}
-              </span>
+              <span key={i} className={styles.weekday} data-weekend={i > 4}>{w}</span>
             ))}
           </div>
           <div className={styles.days}>
@@ -123,6 +117,7 @@ export default function AsistenciaPage() {
                   data-school={school}
                   data-selected={d === selected}
                   data-today={isToday(d)}
+                  data-registered={school && hasRecords(d)}
                   disabled={!school}
                   onClick={() => school && setSelected(d)}
                 >
@@ -132,13 +127,21 @@ export default function AsistenciaPage() {
             })}
           </div>
           <p className={styles.calNote}>
-            Se marca alerta al alcanzar {umbral} faltas en el mes.
+            {regDays.length} día(s) registrados en este periodo · alerta a las{" "}
+            {umbral} faltas.
           </p>
         </div>
 
         <div className={styles.roster}>
           <div className={styles.rosterHead}>
-            <span className={styles.date}>{dayLabel}</span>
+            <div>
+              <span className={styles.date}>{dayLabel}</span>
+              {!dayRegistered && data.students.length > 0 && (
+                <button className={styles.registerBtn} onClick={() => registerDay(period, selStr)}>
+                  Registrar día (todos presentes)
+                </button>
+              )}
+            </div>
             <span className={styles.counts}>
               <span data-tone="ok">{counts.P} presentes</span>
               <span data-tone="warn">{counts.R} retardos</span>
@@ -152,18 +155,16 @@ export default function AsistenciaPage() {
                 Agrega alumnos en Configuración para pasar lista.
               </p>
             )}
-            {data.students.map((s) => {
-              const status = attendance[attKey(selStr, s.id)] ?? "P";
-              const att = attendancePct(s.id, schoolDays, attendance);
+            {data.students.map((st) => {
+              const status = data.state.attendance[attKey(period, selStr, st.id)] ?? "P";
+              const att = attInDays(data, period, regDays, st.id);
               const overThreshold = att.absent >= umbral;
               return (
-                <div key={s.id} className={styles.studentRow}>
-                  <span className={styles.studentName}>{s.name}</span>
-                  {overThreshold && (
-                    <span className={styles.alert}>{att.absent} f.</span>
-                  )}
+                <div key={st.id} className={styles.studentRow}>
+                  <span className={styles.studentName}>{st.name}</span>
+                  {overThreshold && <span className={styles.alert}>{att.absent} f.</span>}
                   <span className={`${styles.pct} tabular`}>
-                    {att.pct.toFixed(0)}% asist.
+                    {att.present + att.delays}/{att.total} días
                   </span>
                   <span className={styles.segments}>
                     {SEGMENTS.map((seg) => (
@@ -172,7 +173,7 @@ export default function AsistenciaPage() {
                         className={styles.segment}
                         data-tone={seg.tone}
                         data-active={status === seg.key}
-                        onClick={() => setAtt(attKey(selStr, s.id), seg.key)}
+                        onClick={() => markAttendance(period, selStr, st.id, seg.key)}
                         aria-label={seg.key}
                       >
                         {seg.glyph}

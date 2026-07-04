@@ -16,6 +16,7 @@ export default function ConfiguracionPage() {
     setUmbral,
     periodCount,
     setPeriodCount,
+    setRounding,
     addStudent,
     removeStudent,
     renameStudent,
@@ -216,7 +217,7 @@ export default function ConfiguracionPage() {
           Suma {sum}%
           {sum !== 100 && (
             <span className={styles.sumHint}>
-              {sum < 100 ? " · faltan puntos" : " · excede 100%"}
+              {" "}· se ajusta a 100% automáticamente al calcular
             </span>
           )}
         </div>
@@ -274,6 +275,31 @@ export default function ConfiguracionPage() {
                 <TrashIcon size={16} />
               </button>
             </div>
+          ))}
+        </div>
+      </section>
+
+      <section className={styles.card}>
+        <h2 className={styles.cardTitle}>Redondeo de la calificación final</h2>
+        <p className={styles.umbralNote}>
+          Define cómo se convierte la calificación con decimal a la final (la que
+          va en la boleta SEP).
+        </p>
+        <div className={styles.roundOpts}>
+          {[
+            { key: "half", label: "Sube desde .5", ex: "8.5 → 9" },
+            { key: "sixty", label: "Sube desde .6", ex: "8.5 → 8 · 8.6 → 9" },
+            { key: "none", label: "Sin redondeo", ex: "8.9 → 8" },
+          ].map((o) => (
+            <button
+              key={o.key}
+              className={styles.roundOpt}
+              data-active={data.rounding === o.key}
+              onClick={() => setRounding(o.key as "half" | "sixty" | "none")}
+            >
+              <span className={styles.roundLabel}>{o.label}</span>
+              <span className={styles.roundEx}>{o.ex}</span>
+            </button>
           ))}
         </div>
       </section>

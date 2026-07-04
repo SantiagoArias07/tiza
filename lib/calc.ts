@@ -91,7 +91,20 @@ export function rubroIsOverridden(
   );
 }
 
-/** Weighted contribution of a rubro to the subject grade (e.g. max 4.0). */
+/** Sum of the configured criteria weights (may differ from 100). */
+export function critSum(doc: GroupDoc): number {
+  return doc.state.crit.reduce((a, b) => a + (b || 0), 0);
+}
+
+/** Normalized weight (%) of a rubro so all weights always total 100. */
+export function rubroWeightPct(doc: GroupDoc, ri: number): number {
+  const raw = doc.state.crit[ri] ?? 0;
+  const sum = critSum(doc);
+  if (sum <= 0) return doc.state.crit.length ? 100 / doc.state.crit.length : 0;
+  return (raw / sum) * 100;
+}
+
+/** Weighted contribution of a rubro to the subject grade (normalized). */
 export function rubroPoints(
   doc: GroupDoc,
   subject: Subject,
@@ -99,8 +112,20 @@ export function rubroPoints(
   studentId: number,
   period: number
 ): number {
-  const pct = doc.state.crit[ri] ?? subject.rubros[ri].pct;
-  return rubroScore(doc, subject, ri, studentId, period) * (pct / 100);
+  return (
+    rubroScore(doc, subject, ri, studentId, period) *
+    (rubroWeightPct(doc, ri) / 100)
+  );
+}
+
+/** Round a final grade per the group's rounding setting. */
+export function roundFinal(doc: GroupDoc, v: number): number {
+  const mode = doc.rounding ?? "half";
+  const floor = Math.floor(v);
+  const frac = v - floor;
+  if (mode === "none") return floor;
+  if (mode === "sixty") return floor + (frac >= 0.6 ? 1 : 0);
+  return floor + (frac >= 0.5 ? 1 : 0); // half
 }
 
 /** Average rubro score across students, for one period. */
@@ -225,28 +250,79 @@ export function subjectAverageCycle(doc: GroupDoc, subject: Subject): number {
   return grades.reduce((a, b) => a + b, 0) / grades.length;
 }
 
-/* ---- Attendance (unchanged; by day) ------------------------------------- */
+/* ---- Attendance (per period; only counts days lista was taken) ---------- */
 
-export function attKey(day: string, studentId: number): string {
-  return `${day}-${studentId}`;
+export function attKey(period: number, day: string, studentId: number): string {
+  return `${period}-${day}-${studentId}`;
+}
+export function attDayKey(period: number, day: string): string {
+  return `${period}-${day}`;
 }
 
-export function attendancePct(
-  studentId: number,
+/** School days registered (lista taken) in a period, sorted. */
+export function registeredDays(doc: GroupDoc, period: number): string[] {
+  const prefix = `${period}-`;
+  return Object.keys(doc.state.attDays)
+    .filter((k) => k.startsWith(prefix) && doc.state.attDays[k])
+    .map((k) => k.slice(prefix.length))
+    .sort();
+}
+
+interface AttSummary {
+  present: number;
+  delays: number;
+  absent: number;
+  total: number;
+  pct: number;
+}
+
+/** Attendance summary for one student across a set of registered days. */
+export function attInDays(
+  doc: GroupDoc,
+  period: number,
   days: string[],
-  att: Record<string, AttStatus>
-): { pct: number; present: number; delays: number; absent: number } {
+  studentId: number
+): AttSummary {
   let present = 0;
   let delays = 0;
   let absent = 0;
   for (const d of days) {
-    const v = att[attKey(d, studentId)] ?? "P";
+    const v = doc.state.attendance[attKey(period, d, studentId)] ?? "P";
     if (v === "P") present++;
     else if (v === "R") delays++;
     else absent++;
   }
-  const total = days.length || 1;
-  return { pct: ((present + delays) / total) * 100, present, delays, absent };
+  const total = days.length;
+  return {
+    present,
+    delays,
+    absent,
+    total,
+    pct: total ? ((present + delays) / total) * 100 : 100,
+  };
+}
+
+/** Attendance across the whole cycle (all periods). */
+export function attendanceCycle(doc: GroupDoc, studentId: number): AttSummary {
+  const n = Math.max(1, doc.periodCount || 1);
+  let present = 0;
+  let delays = 0;
+  let absent = 0;
+  let total = 0;
+  for (let p = 0; p < n; p++) {
+    const s = attInDays(doc, p, registeredDays(doc, p), studentId);
+    present += s.present;
+    delays += s.delays;
+    absent += s.absent;
+    total += s.total;
+  }
+  return {
+    present,
+    delays,
+    absent,
+    total,
+    pct: total ? ((present + delays) / total) * 100 : 100,
+  };
 }
 
 export function fmt(n: number, digits = 1): string {

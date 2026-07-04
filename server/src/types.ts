@@ -45,19 +45,21 @@ export interface Subject {
  * Mutable per-group state. Grade-related keys are period-prefixed
  * (e.g. "0-lenguajes-1-2-3" = period 0). See lib/data key helpers.
  */
+export type RoundingMode = "half" | "sixty" | "none";
+
 export interface GroupState {
   cells: Record<string, CellStatus>;
   notes: Record<string, string>;
+  /** key `${period}-${day}-${studentId}` */
   attendance: Record<string, AttStatus>;
+  /** days lista was taken, key `${period}-${day}` */
+  attDays: Record<string, boolean>;
   privNotes: Record<string, string>;
   crit: number[];
   umbral: number;
   extraActivities: Record<string, Activity[]>;
-  /** total questions per exam, key `${period}-${slug}` */
   examTotals: Record<string, number>;
-  /** aciertos per student, key `${period}-${slug}-${studentId}` */
   examAciertos: Record<string, number>;
-  /** manual grade overrides (0–10), rubro or subject level */
   overrides: Record<string, number>;
 }
 
@@ -72,6 +74,7 @@ export interface GroupDoc {
   trimester: string;
   /** number of evaluation periods in the cycle */
   periodCount: number;
+  rounding: RoundingMode;
   students: Student[];
   subjects: Subject[];
   state: GroupState;
@@ -97,6 +100,7 @@ export function emptyState(): GroupState {
     cells: {},
     notes: {},
     attendance: {},
+    attDays: {},
     privNotes: {},
     crit: [40, 20, 40],
     umbral: 3,

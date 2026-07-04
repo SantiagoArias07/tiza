@@ -362,3 +362,37 @@
   font-size: 14px;
   font-weight: 800;
 }
+
+.roundOpts {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.roundOpt {
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-3);
+  border-radius: 10px;
+  background: var(--bg-subtle);
+  text-align: left;
+  transition: border-color 0.12s, background 0.12s;
+}
+.roundOpt[data-active="true"] {
+  border-color: var(--primary);
+  background: var(--bg-card);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+.roundLabel {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.roundEx {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
