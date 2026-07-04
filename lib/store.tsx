@@ -13,6 +13,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "./auth";
 import * as api from "./api";
 import { extraKey } from "./data";
+import { emptyState } from "./types";
 import type {
   Activity,
   AttStatus,
@@ -23,6 +24,20 @@ import type {
 } from "./types";
 
 const CYCLE: CellStatus[] = ["complete", "incomplete", "missing"];
+
+/**
+ * Guarantee a group doc has every field the app expects, even if it was saved
+ * by an older backend version (prevents "cannot read undefined" crashes).
+ */
+function normalizeDoc(doc: GroupDoc): GroupDoc {
+  return {
+    ...doc,
+    periodCount: doc.periodCount && doc.periodCount > 0 ? doc.periodCount : 3,
+    students: Array.isArray(doc.students) ? doc.students : [],
+    subjects: Array.isArray(doc.subjects) ? doc.subjects : [],
+    state: { ...emptyState(), ...(doc.state ?? {}) },
+  };
+}
 
 export type SyncStatus = "idle" | "saving" | "online" | "offline";
 
@@ -129,7 +144,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         const doc = await api.fetchGroup(activeId);
-        if (!cancelled) setDocs((p) => ({ ...p, [activeId]: doc }));
+        if (!cancelled) setDocs((p) => ({ ...p, [activeId]: normalizeDoc(doc) }));
       } catch {
         /* not found / offline */
       } finally {
@@ -189,7 +204,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       cycle?: string;
       trimester?: string;
     }) => {
-      const doc = await api.createGroup(input);
+      const doc = normalizeDoc(await api.createGroup(input));
       setDocs((p) => ({ ...p, [doc.id]: doc }));
       await refreshGroups();
       return doc;

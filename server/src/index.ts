@@ -13,6 +13,17 @@ import { newGroup, seedDemoGroup } from "./seed";
 import { computeMetrics } from "./metrics";
 import { GroupDoc, GroupMeta, User, UserRecord, emptyState } from "./types";
 
+/** Fill any fields missing from older saved docs so nothing reads undefined. */
+function normalize(doc: GroupDoc): GroupDoc {
+  return {
+    ...doc,
+    periodCount: doc.periodCount && doc.periodCount > 0 ? doc.periodCount : 3,
+    students: Array.isArray(doc.students) ? doc.students : [],
+    subjects: Array.isArray(doc.subjects) ? doc.subjects : [],
+    state: { ...emptyState(), ...(doc.state ?? {}) },
+  };
+}
+
 function toMeta(doc: GroupDoc): GroupMeta {
   const m = computeMetrics(doc);
   return {
@@ -116,7 +127,7 @@ app.get("/api/me", requireAuth, async (req: AuthedRequest, res) => {
 // ---- Groups --------------------------------------------------------------
 app.get("/api/groups", requireAuth, async (req: AuthedRequest, res) => {
   const groups = await store.listGroups(req.userId!);
-  res.json(groups.map(toMeta));
+  res.json(groups.map(normalize).map(toMeta));
 });
 
 app.post("/api/groups", requireAuth, async (req: AuthedRequest, res) => {
@@ -141,7 +152,7 @@ async function ownedGroup(
     res.status(404).json({ error: "grupo no encontrado" });
     return null;
   }
-  return doc;
+  return normalize(doc);
 }
 
 app.get("/api/groups/:id", requireAuth, async (req: AuthedRequest, res) => {
