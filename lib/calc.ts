@@ -7,7 +7,7 @@ import {
   overrideRubroKey,
   overrideSubjectKey,
 } from "./data";
-import type { AttStatus, GroupDoc, Subject } from "./types";
+import type { Activity, AttStatus, GroupDoc, Subject } from "./types";
 
 const RISK_THRESHOLD = 6.0;
 
@@ -15,15 +15,34 @@ function clamp(v: number) {
   return Math.max(0, Math.min(10, v));
 }
 
-/** Number of activities in a rubro for a period (template + added). */
+/**
+ * The activity list for a (period, subject, rubro) — independent per period.
+ * Uses the stored per-period list if present, else falls back to the template
+ * (+ legacy extras) so old data keeps working.
+ */
+export function activitiesFor(
+  doc: GroupDoc,
+  period: number,
+  subject: Subject,
+  ri: number
+): Activity[] {
+  const key = extraKey(period, subject.slug, ri);
+  const stored = doc.state.acts?.[key];
+  if (stored) return stored;
+  return [
+    ...subject.rubros[ri].activities,
+    ...(doc.state.extraActivities?.[key] ?? []),
+  ];
+}
+
+/** Number of activities in a rubro for a period. */
 export function activityCount(
   doc: GroupDoc,
   subject: Subject,
   ri: number,
   period: number
 ): number {
-  const extra = doc.state.extraActivities[extraKey(period, subject.slug, ri)] ?? [];
-  return subject.rubros[ri].activities.length + extra.length;
+  return activitiesFor(doc, period, subject, ri).length;
 }
 
 /** Exam score 0–10 from aciertos / total. */

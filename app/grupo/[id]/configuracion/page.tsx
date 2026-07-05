@@ -172,7 +172,14 @@ export default function ConfiguracionPage() {
                 className={styles.removeBtn}
                 title="Quitar criterio"
                 disabled={rubros.length <= 1}
-                onClick={() => removeRubro(i)}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      `¿Quitar el criterio "${r.name}"? Se borran sus registros en todas las materias.`
+                    )
+                  )
+                    removeRubro(i);
+                }}
               >
                 <TrashIcon size={15} />
               </button>
@@ -270,7 +277,14 @@ export default function ConfiguracionPage() {
                 className={styles.removeBtn}
                 title="Quitar materia"
                 disabled={data.subjects.length <= 1}
-                onClick={() => removeSubject(s.slug)}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      `¿Quitar la materia "${s.name}"? Se borran sus calificaciones.`
+                    )
+                  )
+                    removeSubject(s.slug);
+                }}
               >
                 <TrashIcon size={16} />
               </button>

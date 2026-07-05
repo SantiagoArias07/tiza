@@ -309,7 +309,7 @@ function drawBoleta(doc: jsPDF, group: GroupDoc, student: Student, teacher: stri
   const nameCol = 80;
   const campoW = (leftW - nameCol) / Math.max(campos.length, 1);
   const bandH = 14;
-  const headH = 56;
+  const headH = 44;
   const rowH = 24;
   const tableTop = y;
 
@@ -329,13 +329,14 @@ function drawBoleta(doc: jsPDF, group: GroupDoc, student: Student, teacher: stri
   doc.text("EVALUACIÓN", mx + nameCol / 2, y + bandH + 33, { align: "center" });
   let cx = mx + nameCol;
   campos.forEach((c) => {
-    doc.rect(cx, y + bandH, campoW, headH, "FD");
-    doc.setFontSize(6.5);
+    // White (uncolored) cells, like the rest of the table.
+    doc.rect(cx, y + bandH, campoW, headH, "S");
+    doc.setFontSize(6);
     doc.setTextColor(INK);
     // Top-anchored + wrapped so long names stay inside the cell.
     const lines = doc.splitTextToSize(c.name.toUpperCase(), campoW - 6) as string[];
     lines.slice(0, 5).forEach((ln, li) => {
-      doc.text(ln, cx + campoW / 2, y + bandH + 12 + li * 8, { align: "center" });
+      doc.text(ln, cx + campoW / 2, y + bandH + 11 + li * 7.5, { align: "center" });
     });
     cx += campoW;
   });

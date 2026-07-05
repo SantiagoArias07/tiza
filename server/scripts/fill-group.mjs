@@ -80,6 +80,18 @@ async function main() {
     process.exit(1);
   }
   const doc = await api("GET", `/api/groups/${meta.id}`, token);
+
+  // Asegura estructura del modelo actual (periodos + examen marcado).
+  doc.periodCount = doc.periodCount || 3;
+  doc.rounding = doc.rounding || "half";
+  for (const subj of doc.subjects) {
+    let hasExam = subj.rubros.some((r) => r.kind === "exam");
+    if (!hasExam) {
+      const idx = subj.rubros.findIndex((r) => /exam/i.test(r.name));
+      const target = idx >= 0 ? idx : subj.rubros.length - 1;
+      if (subj.rubros[target]) subj.rubros[target].kind = "exam";
+    }
+  }
   console.log(`→ Grupo "${doc.label}" · ${doc.subjects.length} materias · ${doc.periodCount} periodos`);
 
   // 1) Alumnos

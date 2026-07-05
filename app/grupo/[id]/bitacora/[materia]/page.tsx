@@ -8,10 +8,10 @@ import {
   cellKey,
   examAciertoKey,
   examTotalKey,
-  extraKey,
   overrideRubroKey,
 } from "@/lib/data";
 import {
+  activitiesFor,
   activityAverage,
   examScore,
   fmt,
@@ -22,7 +22,7 @@ import {
   rubroScore,
   rubroWeightPct,
 } from "@/lib/calc";
-import type { Activity, Subject } from "@/lib/types";
+import type { Subject } from "@/lib/types";
 import { PeriodTabs } from "@/components/PeriodTabs";
 import { StatusCell } from "@/components/StatusCell";
 import { NotePopover } from "@/components/NotePopover";
@@ -58,12 +58,8 @@ export default function MateriaPage() {
   const s = subject!;
   const base = `/grupo/${data.id}`;
 
-  // Activity list for a rubro in the active period: template + added.
-  const acts = (ri: number): Activity[] => [
-    ...s.rubros[ri].activities,
-    ...(g.extraActivities[extraKey(period, s.slug, ri)] ?? []),
-  ];
-  const templateCount = (ri: number) => s.rubros[ri].activities.length;
+  // Activity list for a rubro in the active period (independent per period).
+  const acts = (ri: number) => activitiesFor(data, period, s, ri);
 
   const toggle = (i: number) =>
     setExpanded((prev) => prev.map((v, idx) => (idx === i ? !v : v)));
@@ -159,45 +155,48 @@ export default function MateriaPage() {
                           const isEditingAct = actEdit?.ri === ri && actEdit?.ai === ai;
                           const commitAct = () => {
                             if (actVal.trim())
-                              g.renameActivity(period, s.slug, ri, ai, templateCount(ri), actVal.trim());
+                              g.renameActivity(period, s.slug, ri, ai, actVal.trim());
                             setActEdit(null);
                           };
                           return (
                             <th key={ai} className={styles.actHead} title={a.name}>
-                              <span className={styles.actHeadInner}>
-                                {isEditingAct ? (
-                                  <input
-                                    className={styles.actEditInput}
-                                    value={actVal}
-                                    autoFocus
-                                    onChange={(e) => setActVal(e.target.value)}
-                                    onBlur={commitAct}
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter" || e.key === "Escape") commitAct();
-                                    }}
-                                  />
-                                ) : (
-                                  <button
-                                    className={styles.actNameBtn}
-                                    title="Renombrar actividad"
-                                    onClick={() => {
-                                      setActEdit({ ri, ai });
-                                      setActVal(a.name);
-                                    }}
-                                  >
-                                    {a.name}
-                                  </button>
-                                )}
+                              {isEditingAct ? (
+                                <input
+                                  className={styles.actEditInput}
+                                  value={actVal}
+                                  autoFocus
+                                  onChange={(e) => setActVal(e.target.value)}
+                                  onBlur={commitAct}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === "Escape") commitAct();
+                                  }}
+                                />
+                              ) : (
                                 <button
-                                  className={styles.delAct}
-                                  title="Eliminar actividad"
-                                  onClick={() =>
-                                    g.deleteActivity(period, s.slug, ri, ai, templateCount(ri))
-                                  }
+                                  className={styles.actNameBtn}
+                                  title="Clic para renombrar"
+                                  onClick={() => {
+                                    setActEdit({ ri, ai });
+                                    setActVal(a.name);
+                                  }}
                                 >
-                                  <XIcon size={11} />
+                                  {a.name}
                                 </button>
-                              </span>
+                              )}
+                              <button
+                                className={styles.delAct}
+                                title="Eliminar actividad"
+                                onClick={() => {
+                                  if (
+                                    window.confirm(
+                                      `¿Eliminar la actividad "${a.name}"? Se borrarán sus registros de este periodo.`
+                                    )
+                                  )
+                                    g.deleteActivity(period, s.slug, ri, ai);
+                                }}
+                              >
+                                <XIcon size={10} />
+                              </button>
                             </th>
                           );
                         })}

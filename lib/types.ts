@@ -56,7 +56,10 @@ export interface GroupState {
   privNotes: Record<string, string>;
   crit: number[];
   umbral: number;
+  /** legacy: extra activities added on top of the template (read-only compat) */
   extraActivities: Record<string, Activity[]>;
+  /** full per-period activity list, key `${period}-${slug}-${ri}` (independent per period) */
+  acts: Record<string, Activity[]>;
   examTotals: Record<string, number>;
   examAciertos: Record<string, number>;
   overrides: Record<string, number>;
@@ -103,6 +106,7 @@ export function emptyState(): GroupState {
     crit: [40, 20, 40],
     umbral: 3,
     extraActivities: {},
+    acts: {},
     examTotals: {},
     examAciertos: {},
     overrides: {},

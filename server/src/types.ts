@@ -58,6 +58,8 @@ export interface GroupState {
   crit: number[];
   umbral: number;
   extraActivities: Record<string, Activity[]>;
+  /** full per-period activity list, key `${period}-${slug}-${ri}` */
+  acts: Record<string, Activity[]>;
   examTotals: Record<string, number>;
   examAciertos: Record<string, number>;
   overrides: Record<string, number>;
@@ -105,6 +107,7 @@ export function emptyState(): GroupState {
     crit: [40, 20, 40],
     umbral: 3,
     extraActivities: {},
+    acts: {},
     examTotals: {},
     examAciertos: {},
     overrides: {},

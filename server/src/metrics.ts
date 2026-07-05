@@ -29,8 +29,11 @@ function rubroScore(
     return clamp((aciertos / total) * 10);
   }
 
-  const extra = doc.state.extraActivities[`${p}-${subject.slug}-${ri}`] ?? [];
-  const count = rubro.activities.length + extra.length;
+  const key = `${p}-${subject.slug}-${ri}`;
+  const perPeriod = doc.state.acts?.[key];
+  const count = perPeriod
+    ? perPeriod.length
+    : rubro.activities.length + (doc.state.extraActivities[key]?.length ?? 0);
   if (!count) return 0;
   let sum = 0;
   for (let ai = 0; ai < count; ai++) {

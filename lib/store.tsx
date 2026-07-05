@@ -98,16 +98,14 @@ interface StoreValue {
     period: number,
     subjectSlug: string,
     rubroIdx: number,
-    globalIndex: number,
-    templateCount: number,
+    index: number,
     name: string
   ) => void;
   deleteActivity: (
     period: number,
     subjectSlug: string,
     rubroIdx: number,
-    globalIndex: number,
-    templateCount: number
+    index: number
   ) => void;
   addStudent: (name: string) => void;
   removeStudent: (studentId: number) => void;
@@ -133,6 +131,21 @@ const SUBJECT_COLORS: Array<[string, string]> = [
   ["#F1E9F0", "#876A86"],
   ["#F3EFE0", "#9A8A3E"],
 ];
+
+/** Full per-period activity list, materialized from the template if needed. */
+function materializeActs(
+  doc: GroupDoc,
+  period: number,
+  slug: string,
+  ri: number
+): Activity[] {
+  const key = extraKey(period, slug, ri);
+  if (doc.state.acts?.[key]) return doc.state.acts[key].map((a) => ({ ...a }));
+  const subj = doc.subjects.find((s) => s.slug === slug);
+  const tmpl = subj?.rubros[ri]?.activities ?? [];
+  const extra = doc.state.extraActivities?.[key] ?? [];
+  return [...tmpl.map((a) => ({ ...a })), ...extra.map((a) => ({ ...a }))];
+}
 
 function slugify(name: string, taken: string[]): string {
   const bare = name
@@ -385,17 +398,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const addActivity = useCallback(
     (period: number, subjectSlug: string, rubroIdx: number, activity: Activity) =>
-      patchState((s) => {
-        const key = extraKey(period, subjectSlug, rubroIdx);
+      updateActive((doc) => {
+        const ek = extraKey(period, subjectSlug, rubroIdx);
+        const list = materializeActs(doc, period, subjectSlug, rubroIdx);
+        list.push(activity);
         return {
-          ...s,
-          extraActivities: {
-            ...s.extraActivities,
-            [key]: [...(s.extraActivities[key] ?? []), activity],
-          },
+          ...doc,
+          state: { ...doc.state, acts: { ...doc.state.acts, [ek]: list } },
         };
       }),
-    [patchState]
+    [updateActive]
   );
 
   const renameActivity = useCallback(
@@ -403,89 +415,36 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       period: number,
       subjectSlug: string,
       rubroIdx: number,
-      globalIndex: number,
-      templateCount: number,
+      index: number,
       name: string
     ) =>
       updateActive((doc) => {
-        if (globalIndex < templateCount) {
-          return {
-            ...doc,
-            subjects: doc.subjects.map((s) =>
-              s.slug !== subjectSlug
-                ? s
-                : {
-                    ...s,
-                    rubros: s.rubros.map((r, i) =>
-                      i !== rubroIdx
-                        ? r
-                        : {
-                            ...r,
-                            activities: r.activities.map((a, ai) =>
-                              ai === globalIndex ? { ...a, name } : a
-                            ),
-                          }
-                    ),
-                  }
-            ),
-          };
-        }
         const ek = extraKey(period, subjectSlug, rubroIdx);
-        const arr = [...(doc.state.extraActivities[ek] ?? [])];
-        const ei = globalIndex - templateCount;
-        if (ei < 0 || ei >= arr.length) return doc;
-        arr[ei] = { ...arr[ei], name };
+        const list = materializeActs(doc, period, subjectSlug, rubroIdx);
+        if (index < 0 || index >= list.length) return doc;
+        list[index] = { ...list[index], name };
         return {
           ...doc,
-          state: {
-            ...doc.state,
-            extraActivities: { ...doc.state.extraActivities, [ek]: arr },
-          },
+          state: { ...doc.state, acts: { ...doc.state.acts, [ek]: list } },
         };
       }),
     [updateActive]
   );
 
   const deleteActivity = useCallback(
-    (
-      period: number,
-      subjectSlug: string,
-      rubroIdx: number,
-      globalIndex: number,
-      templateCount: number
-    ) =>
+    (period: number, subjectSlug: string, rubroIdx: number, index: number) =>
       updateActive((doc) => {
         const ek = extraKey(period, subjectSlug, rubroIdx);
-        const extra = [...(doc.state.extraActivities[ek] ?? [])];
-        const oldTotal = templateCount + extra.length;
-        if (globalIndex < 0 || globalIndex >= oldTotal) return doc;
-
-        let subjects = doc.subjects;
-        const nextExtra = { ...doc.state.extraActivities };
-        if (globalIndex < templateCount) {
-          // Remove a template activity from this subject only.
-          subjects = doc.subjects.map((s) =>
-            s.slug !== subjectSlug
-              ? s
-              : {
-                  ...s,
-                  rubros: s.rubros.map((r, i) =>
-                    i !== rubroIdx
-                      ? r
-                      : { ...r, activities: r.activities.filter((_, ai) => ai !== globalIndex) }
-                  ),
-                }
-          );
-        } else {
-          extra.splice(globalIndex - templateCount, 1);
-          nextExtra[ek] = extra;
-        }
+        const list = materializeActs(doc, period, subjectSlug, rubroIdx);
+        const oldTotal = list.length;
+        if (index < 0 || index >= oldTotal) return doc;
+        list.splice(index, 1);
 
         // Reindex cells/notes for activity indices above the removed one.
         const cells = { ...doc.state.cells };
         const notes = { ...doc.state.notes };
         for (const st of doc.students) {
-          for (let ai = globalIndex; ai < oldTotal - 1; ai++) {
+          for (let ai = index; ai < oldTotal - 1; ai++) {
             const cur = cellKey(period, subjectSlug, rubroIdx, ai, st.id);
             const nxt = cellKey(period, subjectSlug, rubroIdx, ai + 1, st.id);
             if (nxt in cells) cells[cur] = cells[nxt];
@@ -499,8 +458,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         }
         return {
           ...doc,
-          subjects,
-          state: { ...doc.state, extraActivities: nextExtra, cells, notes },
+          state: { ...doc.state, acts: { ...doc.state.acts, [ek]: list }, cells, notes },
         };
       }),
     [updateActive]

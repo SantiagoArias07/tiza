@@ -175,6 +175,7 @@
   letter-spacing: 0.04em;
 }
 .actHead {
+  position: relative;
   width: 66px;
   min-width: 66px;
   max-width: 66px;
@@ -182,12 +183,7 @@
   font-weight: 600;
   text-transform: none;
   color: var(--muted);
-}
-.actHeadInner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
+  padding: 8px 6px 8px 6px;
 }
 .actName {
   display: block;
@@ -203,7 +199,8 @@
   font-weight: 600;
   color: var(--muted);
   line-height: 1.15;
-  max-width: 100%;
+  width: 100%;
+  padding: 0 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -214,7 +211,6 @@
 }
 .actNameBtn:hover {
   color: var(--ink);
-  background: rgba(44, 61, 76, 0.05);
 }
 .actEditInput {
   width: 60px;
@@ -227,13 +223,17 @@
   text-align: center;
 }
 .delAct {
+  position: absolute;
+  top: 2px;
+  right: 2px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 5px;
-  color: var(--faint);
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  color: var(--muted-2);
+  background: var(--bg-subtle-2);
   transition: background 0.12s, color 0.12s;
 }
 .delAct:hover {
