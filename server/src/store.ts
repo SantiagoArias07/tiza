@@ -19,6 +19,13 @@ export interface Store {
   getGroup(id: string): Promise<GroupDoc | null>;
   saveGroup(doc: GroupDoc): Promise<GroupDoc>;
   deleteGroup(id: string): Promise<void>;
+
+  // Daily backups (point-in-time snapshots of a user's groups)
+  hasBackup(userId: string, day: string): Promise<boolean>;
+  addBackup(userId: string, day: string, data: unknown): Promise<void>;
+  getBackup(userId: string, day: string): Promise<unknown | null>;
+  listBackups(userId: string): Promise<{ day: string; createdAt: number }[]>;
+  pruneBackups(userId: string, keep: number): Promise<void>;
 }
 
 /* ---- Postgres ------------------------------------------------------------ */
@@ -55,6 +62,52 @@ class PostgresStore implements Store {
     `);
     await this.pool.query(
       `CREATE INDEX IF NOT EXISTS groups_user_idx ON groups (user_id)`
+    );
+    await this.pool.query(`
+      CREATE TABLE IF NOT EXISTS backups (
+        user_id TEXT NOT NULL,
+        day TEXT NOT NULL,
+        data JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (user_id, day)
+      )
+    `);
+  }
+
+  async hasBackup(userId: string, day: string): Promise<boolean> {
+    const res = await this.pool.query(
+      `SELECT 1 FROM backups WHERE user_id = $1 AND day = $2`,
+      [userId, day]
+    );
+    return res.rows.length > 0;
+  }
+  async addBackup(userId: string, day: string, data: unknown) {
+    await this.pool.query(
+      `INSERT INTO backups (user_id, day, data) VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, day) DO UPDATE SET data = $3, created_at = now()`,
+      [userId, day, data]
+    );
+  }
+  async getBackup(userId: string, day: string): Promise<unknown | null> {
+    const res = await this.pool.query(
+      `SELECT data FROM backups WHERE user_id = $1 AND day = $2`,
+      [userId, day]
+    );
+    return res.rows[0]?.data ?? null;
+  }
+  async listBackups(userId: string): Promise<{ day: string; createdAt: number }[]> {
+    const res = await this.pool.query(
+      `SELECT day, extract(epoch from created_at) * 1000 AS ts FROM backups WHERE user_id = $1 ORDER BY day DESC`,
+      [userId]
+    );
+    return res.rows.map((r) => ({ day: r.day, createdAt: Number(r.ts) }));
+  }
+  async pruneBackups(userId: string, keep: number) {
+    await this.pool.query(
+      `DELETE FROM backups WHERE user_id = $1 AND day NOT IN (
+         SELECT day FROM backups WHERE user_id = $1 ORDER BY day DESC LIMIT $2
+       )`,
+      [userId, keep]
     );
   }
 
@@ -116,6 +169,7 @@ class PostgresStore implements Store {
 interface FileData {
   users: Record<string, UserRecord>;
   groups: Record<string, GroupDoc>;
+  backups?: Record<string, Record<string, { data: unknown; createdAt: number }>>;
 }
 
 class FileStore implements Store {
@@ -173,6 +227,34 @@ class FileStore implements Store {
   async deleteGroup(id: string) {
     const db = this.read();
     delete db.groups[id];
+    this.write(db);
+  }
+
+  async hasBackup(userId: string, day: string): Promise<boolean> {
+    return Boolean(this.read().backups?.[userId]?.[day]);
+  }
+  async addBackup(userId: string, day: string, data: unknown) {
+    const db = this.read();
+    db.backups = db.backups ?? {};
+    db.backups[userId] = db.backups[userId] ?? {};
+    db.backups[userId][day] = { data, createdAt: Date.now() };
+    this.write(db);
+  }
+  async getBackup(userId: string, day: string): Promise<unknown | null> {
+    return this.read().backups?.[userId]?.[day]?.data ?? null;
+  }
+  async listBackups(userId: string): Promise<{ day: string; createdAt: number }[]> {
+    const b = this.read().backups?.[userId] ?? {};
+    return Object.entries(b)
+      .map(([day, v]) => ({ day, createdAt: v.createdAt }))
+      .sort((a, b2) => (a.day < b2.day ? 1 : -1));
+  }
+  async pruneBackups(userId: string, keep: number) {
+    const db = this.read();
+    const b = db.backups?.[userId];
+    if (!b) return;
+    const days = Object.keys(b).sort().reverse();
+    for (const d of days.slice(keep)) delete b[d];
     this.write(db);
   }
 }

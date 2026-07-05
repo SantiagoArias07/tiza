@@ -298,10 +298,21 @@ function drawBoleta(doc: jsPDF, group: GroupDoc, student: Student, teacher: stri
   y += 18;
 
   // ---- Table (left) + side boxes (right) ----------------------------------
-  const campos = group.subjects.filter((s) => s.slug !== "fisica").slice(0, 4);
+  // All subjects show as columns (reflects added/removed materias).
+  const campos = group.subjects;
   const periods = Math.max(1, group.periodCount || 1);
   const ORD = ["PRIMERO", "SEGUNDO", "TERCERO", "CUARTO", "QUINTO", "SEXTO"];
-  const avg = studentAverageCycle(group, student.id);
+  // Final per subject = average of the ROUNDED per-period grades (as shown),
+  // kept in decimals.
+  const materiaFinal = (c: Subject) => {
+    let sum = 0;
+    for (let p = 0; p < periods; p++) sum += roundFinal(group, subjectGrade(group, c, student.id, p));
+    return sum / periods;
+  };
+  const gradeFinal = campos.length
+    ? campos.reduce((s, c) => s + materiaFinal(c), 0) / campos.length
+    : 0;
+  const avg = gradeFinal;
   const att = attendanceCycle(group, student.id);
   const promovido = avg >= 6;
 
@@ -368,7 +379,7 @@ function drawBoleta(doc: jsPDF, group: GroupDoc, student: Student, teacher: stri
   for (let p = 0; p < periods; p++) {
     cellRow(ORD[p] ?? `PERIODO ${p + 1}`, (c) => String(roundFinal(group, subjectGrade(group, c, student.id, p))), false, false);
   }
-  cellRow("PROMEDIO\nFINAL", (c) => subjectGradeCycle(group, c, student.id).toFixed(1), true, true);
+  cellRow("PROMEDIO\nFINAL", (c) => materiaFinal(c).toFixed(1), true, true);
   const tableBottom = y;
 
   // Side boxes

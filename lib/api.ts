@@ -111,3 +111,17 @@ export function saveGroup(doc: GroupDoc): Promise<GroupDoc> {
 export function deleteGroup(id: string): Promise<{ ok: true }> {
   return request(`/api/groups/${id}`, { method: "DELETE" });
 }
+
+/* ---- Backups (automatic daily snapshots) -------------------------------- */
+
+export function listBackups(): Promise<{ day: string; createdAt: number }[]> {
+  return request("/api/backups");
+}
+
+export function getBackup(day: string): Promise<unknown> {
+  return request(`/api/backups/${day}`);
+}
+
+export function restoreBackup(day: string): Promise<{ ok: true; restored: number }> {
+  return request(`/api/backups/${day}/restore`, { method: "POST" });
+}

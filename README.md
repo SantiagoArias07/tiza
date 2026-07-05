@@ -1,40 +1,99 @@
-# Tiza · Bitácora Digital Docente
+# Tiza — Digital Grade Book for Teachers
 
-Bitácora digital para maestros de primaria: alumnos, calificaciones por
-actividad (palomitas), asistencia y analítica. Tono premium y cálido.
+Tiza is a warm, premium web app that replaces the paper grade book used by
+Mexican primary‑school teachers. It handles the full evaluation cycle —
+students, activity tracking ("palomitas"), exams, attendance and analytics —
+and generates the official **SEP evaluation report** and an internal
+**concentrado** as print‑ready PDFs.
 
-- **Frontend:** Next.js 14 (App Router) + TypeScript → se despliega en **Vercel**
-- **Backend:** Express + PostgreSQL + autenticación (bcrypt + JWT) → se
-  despliega en **Render**
-- **Cuentas:** cada maestro se registra con correo y contraseña y ve solo sus
-  grupos. Al registrarse recibe un grupo demo (3° B con 24 alumnos) para
-  explorar, y puede crear más grupos, agregar/quitar alumnos, etc.
-- **Datos:** el backend guarda todo (grupos, alumnos, calificaciones, notas,
-  asistencia, criterios). Los cambios se sincronizan automáticamente.
+> Built around Mexico's current *campos formativos* curriculum (Plan 2022):
+> Lenguajes · Saberes y Pensamiento Científico · Ética, Naturaleza y Sociedades ·
+> De lo Humano y lo Comunitario · Educación Física.
+
+**Stack:** Next.js 14 (App Router) + TypeScript · Express + PostgreSQL · JWT auth
+· jsPDF. Frontend deploys to **Vercel**, backend to **Render**.
 
 ---
 
-## Correr en local
+## Highlights
 
-Necesitas dos terminales.
+- **Accounts & multi‑group** — email/password auth (bcrypt + JWT); each teacher
+  sees only their groups and starts with a seeded demo group.
+- **Evaluation by period** — configurable number of periods shown as tabs; every
+  period is fully independent (its own activities and grades).
+- **Flexible criteria** — rename, add and remove evaluation criteria; weights are
+  normalized to 100% automatically.
+- **Three‑state activity cells** — ✓ complete / ◑ incomplete / ✗ not submitted,
+  with per‑cell notes; grades recompute live.
+- **Exam by correct answers** — set the exam's total questions once, enter each
+  student's *aciertos*, and the grade is scored over 10.
+- **Manual overrides** — any computed grade can be edited by hand, flagged as
+  "edited" while keeping the calculated value in a tooltip.
+- **Attendance** — navigable monthly calendar tied to each period, with a real
+  "present / total registered days" ratio and absence‑threshold alerts.
+- **Analytics** — group average, at‑risk students, grade distribution, delivery
+  rate and average‑per‑period evolution.
+- **PDF reports** — official SEP boleta (portrait) and a landscape concentrado,
+  both filled with real grades and configurable rounding.
+- **Automatic daily backups** — a point‑in‑time snapshot of every group is stored
+  each day (last 7 kept), downloadable and restorable.
+- **Offline‑resilient** — the app keeps working from `localStorage` if the API is
+  briefly unreachable, then re‑syncs.
+- **Responsive** — works on desktop and mobile (collapsible sidebar).
 
-**1. Backend** (usa un archivo JSON local, sin base de datos):
+---
+
+## Architecture
+
+```
+tiza/
+├── app/                 # Next.js routes (dashboard, login, group screens)
+├── components/          # UI: AppShell, PeriodTabs, StatusCell, modals, PDF-less UI
+├── lib/                 # Domain logic
+│   ├── types.ts         #   shared types (GroupDoc, GroupState, …)
+│   ├── data.ts          #   key helpers (cells, exams, overrides)
+│   ├── calc.ts          #   grade/attendance calculations (period + cycle)
+│   ├── store.tsx        #   React context store (loads/saves group docs)
+│   ├── auth.tsx         #   auth context
+│   ├── api.ts           #   typed API client
+│   └── export.ts        #   PDF/CSV generation (jsPDF)
+└── server/              # Express API
+    ├── src/index.ts     #   routes: auth, groups CRUD, backups
+    ├── src/store.ts     #   Postgres (prod) or JSON file (dev) storage
+    ├── src/metrics.ts   #   server-side metrics for group lists
+    ├── src/seed.ts      #   demo group + default subjects
+    └── scripts/         #   fill-group.mjs (demo data generator)
+```
+
+**Data model.** The frontend owns the static baseline (subject catalog, seeded
+demo). Each group is a single document (`GroupDoc`) containing its students,
+subjects and a mutable `state` (grades, notes, attendance, exam data, manual
+overrides, per‑period activity lists). Grade keys are period‑prefixed
+(`${period}-${subject}-${rubro}-${activity}-${student}`) so periods never
+collide. Grades are computed per period and aggregated over the cycle.
+
+---
+
+## Getting started (local)
+
+Two terminals.
+
+**Backend** (uses a local JSON file, no database needed):
 
 ```bash
 cd server
 npm install
-npm run dev          # queda escuchando en http://localhost:4000
+npm run dev            # http://localhost:4000
 ```
 
-**2. Frontend:**
+**Frontend:**
 
 ```bash
 npm install
-npm run dev          # abre http://localhost:3000
+npm run dev            # http://localhost:3000
 ```
 
-El frontend habla con `http://localhost:4000` por defecto. Para apuntar a otra
-URL, crea un archivo `.env.local` en la raíz:
+Point the frontend at another API by creating `.env.local`:
 
 ```
 NEXT_PUBLIC_API_URL=http://localhost:4000
@@ -42,105 +101,53 @@ NEXT_PUBLIC_API_URL=http://localhost:4000
 
 ---
 
-## Desplegar
+## Deployment
 
-### Paso 0 — Sube el repo a GitHub
+### Backend — Render
+
+1. **New → Blueprint** and connect the repo. `render.yaml` provisions the web
+   service (`rootDir: server`), a free **PostgreSQL** instance and a generated
+   `JWT_SECRET`.
+2. Verify `https://<your-backend>.onrender.com/api/health` returns
+   `{"ok":true,"store":"postgres"}`.
+
+> If `store` says `file`, data is ephemeral. Create a Postgres instance and set
+> `DATABASE_URL` (plus `JWT_SECRET`) on the service.
+
+### Frontend — Vercel
+
+1. Import the repo (Next.js is auto‑detected).
+2. Set `NEXT_PUBLIC_API_URL` to the Render URL.
+3. On Render, set `CORS_ORIGIN` to the Vercel URL.
+
+### Environment variables
+
+| Where    | Variable              | Purpose                                  |
+| -------- | --------------------- | ---------------------------------------- |
+| Frontend | `NEXT_PUBLIC_API_URL` | Backend base URL                         |
+| Backend  | `DATABASE_URL`        | Postgres connection (blank → JSON file)  |
+| Backend  | `JWT_SECRET`          | Signs session tokens                     |
+| Backend  | `CORS_ORIGIN`         | Allowed frontend origin(s)               |
+
+---
+
+## Reports & backups
+
+- **Per student:** official **SEP boleta** (PDF) and **concentrado** (PDF).
+- **Per group:** all boletas in one PDF, plus a **CSV** export.
+- **Automatic:** a daily snapshot of all groups is kept server‑side (7 days),
+  and can be downloaded or restored from the sidebar.
+
+Demo data generator (fills a group with realistic, varied grades):
 
 ```bash
-git add .
-git commit -m "Tiza inicial"
-git push
+node server/scripts/fill-group.mjs \
+  --email you@example.com --password ****** \
+  --group codex --url https://<your-backend>.onrender.com
 ```
-
-### Paso 1 — Backend en Render
-
-1. Entra a [render.com](https://render.com) → **New → Blueprint**.
-2. Conecta este repositorio. Render detecta el archivo `render.yaml` y crea
-   tres cosas: el servicio web `tiza-server` (con `rootDir: server`), la base
-   de datos `tiza-db` (Postgres, plan gratis) y un `JWT_SECRET` aleatorio.
-   Dale **Apply**.
-3. Cuando termine, copia la URL del servicio, por ejemplo
-   `https://tiza-server.onrender.com`. Verifica que funciona abriendo
-   `https://tiza-server.onrender.com/api/health` (debe responder
-   `{"ok":true,"store":"postgres"}`).
-
-> `DATABASE_URL` y `JWT_SECRET` se configuran solos gracias al blueprint.
->
-> **Si creaste el servicio a mano** (sin blueprint) y el build corre
-> `next build` / falla con "Cannot find module 'express'", es porque apunta a
-> la raíz. Arréglalo en **Settings** del servicio: **Root Directory** = `server`,
-> **Build Command** = `npm install && npm run build`, **Start Command** =
-> `npm start`. Guarda y vuelve a desplegar con "Clear build cache & deploy".
-
-#### ⚠️ Asegura la base de datos (que no diga `store: file`)
-
-Abre `https://tu-backend.onrender.com/api/health`:
-
-- Si dice `"store":"postgres"` → perfecto, los datos son permanentes.
-- Si dice `"store":"file"` → **los datos se borran en cada reinicio**. Crea
-  Postgres así:
-  1. En Render: **New → Postgres** (plan Free) → **Create Database**. Espera a
-     que quede "Available".
-  2. En la página de la base, copia el **Internal Database URL**.
-  3. Abre tu servicio `tiza-server` → **Environment** → **Add Environment
-     Variable**: Key `DATABASE_URL`, Value = ese Internal URL.
-  4. Agrega también `JWT_SECRET` con cualquier texto largo y aleatorio (para que
-     las sesiones no se invaliden en cada deploy).
-  5. Guarda. Render reinicia y `/api/health` debe decir `"store":"postgres"`.
-
-  > Al cambiar de `file` a `postgres` empiezas con datos limpios (hay que
-  > registrarse de nuevo). Hazlo **antes** de capturar información real.
-
-### Paso 2 — Frontend en Vercel
-
-1. Entra a [vercel.com](https://vercel.com) → **Add New → Project** e importa
-   este repositorio. Vercel detecta Next.js automáticamente.
-2. En **Environment Variables** agrega:
-   - `NEXT_PUBLIC_API_URL` = la URL de Render del paso 1
-     (ej. `https://tiza-server.onrender.com`)
-3. Deploy. Copia la URL final (ej. `https://tiza.vercel.app`).
-
-### Paso 3 — Conecta los dos (CORS)
-
-Para que el navegador pueda llamar al backend, en Render abre el servicio
-`tiza-server` → **Environment** → edita `CORS_ORIGIN` y pon tu URL de Vercel:
-
-```
-CORS_ORIGIN=https://tiza.vercel.app
-```
-
-Guarda (Render reinicia solo). Listo: frontend en Vercel, backend + base de
-datos en Render, todo sincronizado.
 
 ---
 
-## Descargas (todas en PDF/CSV, extensiones estándar)
+## License
 
-Por alumno (ficha del alumno):
-- **Boleta oficial (PDF)** — formato SEP con campos formativos, promedio final,
-  asistencia, observaciones y firmas.
-- **Concentrado (PDF)** — desglose Examen / Trabajo en aula / Tareas →
-  calificación con decimal y final, por campo formativo.
-
-Del grupo (botón *Descargar del grupo* en la barra lateral):
-- **Boletas de todo el grupo (PDF)** — una boleta por alumno en un solo archivo.
-- **Respaldo en CSV** — tabla de calificaciones para Excel o Google Sheets.
-
-Los datos siempre se guardan en la base de datos (nube); las descargas son
-reportes/backup adicionales. Se generan en el navegador, así que funcionan
-aunque el backend esté dormido (el plan gratis de Render suspende el servicio
-tras inactividad; la primera petición tarda ~30 s en despertar).
-
----
-
-## Variables de entorno
-
-| Dónde    | Variable              | Para qué                                   |
-| -------- | --------------------- | ------------------------------------------ |
-| Frontend | `NEXT_PUBLIC_API_URL` | URL del backend (Render)                   |
-| Backend  | `DATABASE_URL`        | Postgres (lo pone el blueprint de Render)  |
-| Backend  | `JWT_SECRET`          | Firma de sesiones (lo genera el blueprint) |
-| Backend  | `CORS_ORIGIN`         | URL del frontend (Vercel) permitida        |
-| Backend  | `PORT`                | Puerto (lo pone Render automáticamente)    |
-
-Ver `.env.example` (raíz) y `server/.env.example`.
+MIT — see [LICENSE](LICENSE).

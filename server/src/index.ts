@@ -126,9 +126,46 @@ app.get("/api/me", requireAuth, async (req: AuthedRequest, res) => {
 });
 
 // ---- Groups --------------------------------------------------------------
+/** Once-per-day automatic snapshot of all the user's groups (keeps 7 days). */
+async function snapshotIfNeeded(userId: string) {
+  const day = new Date().toISOString().slice(0, 10);
+  if (await store.hasBackup(userId, day)) return;
+  const groups = await store.listGroups(userId);
+  await store.addBackup(userId, day, { day, groups });
+  await store.pruneBackups(userId, 7);
+}
+
 app.get("/api/groups", requireAuth, async (req: AuthedRequest, res) => {
   const groups = await store.listGroups(req.userId!);
   res.json(groups.map(normalize).map(toMeta));
+  // Fire-and-forget daily backup (doesn't block the response).
+  snapshotIfNeeded(req.userId!).catch((e) => console.error("backup failed", e));
+});
+
+app.get("/api/backups", requireAuth, async (req: AuthedRequest, res) => {
+  res.json(await store.listBackups(req.userId!));
+});
+
+app.get("/api/backups/:day", requireAuth, async (req: AuthedRequest, res) => {
+  const b = await store.getBackup(req.userId!, req.params.day);
+  if (!b) return res.status(404).json({ error: "respaldo no encontrado" });
+  res.json(b);
+});
+
+app.post("/api/backups/:day/restore", requireAuth, async (req: AuthedRequest, res) => {
+  const b = (await store.getBackup(req.userId!, req.params.day)) as
+    | { groups?: GroupDoc[] }
+    | null;
+  if (!b) return res.status(404).json({ error: "respaldo no encontrado" });
+  const groups = Array.isArray(b.groups) ? b.groups : [];
+  let restored = 0;
+  for (const g of groups) {
+    if (g.userId === req.userId) {
+      await store.saveGroup(g);
+      restored++;
+    }
+  }
+  res.json({ ok: true, restored });
 });
 
 app.post("/api/groups", requireAuth, async (req: AuthedRequest, res) => {
