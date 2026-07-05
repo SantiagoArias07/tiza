@@ -198,6 +198,34 @@
   -webkit-box-orient: vertical;
   max-width: 100%;
 }
+.actNameBtn {
+  font: inherit;
+  font-weight: 600;
+  color: var(--muted);
+  line-height: 1.15;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  cursor: text;
+  border-radius: 4px;
+}
+.actNameBtn:hover {
+  color: var(--ink);
+  background: rgba(44, 61, 76, 0.05);
+}
+.actEditInput {
+  width: 60px;
+  padding: 3px 4px;
+  border: 1px solid #41607b;
+  border-radius: 6px;
+  background: var(--bg-card);
+  font-size: 10px;
+  color: var(--ink);
+  text-align: center;
+}
 .delAct {
   display: inline-flex;
   align-items: center;

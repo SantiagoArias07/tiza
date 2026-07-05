@@ -305,11 +305,11 @@ function drawBoleta(doc: jsPDF, group: GroupDoc, student: Student, teacher: stri
   const att = attendanceCycle(group, student.id);
   const promovido = avg >= 6;
 
-  const leftW = 330;
-  const nameCol = 82;
+  const leftW = 336;
+  const nameCol = 80;
   const campoW = (leftW - nameCol) / Math.max(campos.length, 1);
-  const bandH = 15;
-  const headH = 34;
+  const bandH = 14;
+  const headH = 56;
   const rowH = 24;
   const tableTop = y;
 
@@ -325,15 +325,17 @@ function drawBoleta(doc: jsPDF, group: GroupDoc, student: Student, teacher: stri
     align: "center",
   });
   doc.setFontSize(7);
-  doc.text("PERIODO DE", mx + nameCol / 2, y + bandH + 13, { align: "center" });
-  doc.text("EVALUACIÓN", mx + nameCol / 2, y + bandH + 22, { align: "center" });
+  doc.text("PERIODO DE", mx + nameCol / 2, y + bandH + 24, { align: "center" });
+  doc.text("EVALUACIÓN", mx + nameCol / 2, y + bandH + 33, { align: "center" });
   let cx = mx + nameCol;
   campos.forEach((c) => {
     doc.rect(cx, y + bandH, campoW, headH, "FD");
     doc.setFontSize(6.5);
-    doc.text(c.name.toUpperCase(), cx + campoW / 2, y + bandH + headH / 2, {
-      align: "center",
-      maxWidth: campoW - 4,
+    doc.setTextColor(INK);
+    // Top-anchored + wrapped so long names stay inside the cell.
+    const lines = doc.splitTextToSize(c.name.toUpperCase(), campoW - 6) as string[];
+    lines.slice(0, 5).forEach((ln, li) => {
+      doc.text(ln, cx + campoW / 2, y + bandH + 12 + li * 8, { align: "center" });
     });
     cx += campoW;
   });
@@ -407,9 +409,11 @@ function drawBoleta(doc: jsPDF, group: GroupDoc, student: Student, teacher: stri
 
   y = Math.max(tableBottom, sy) + 16;
 
-  // ---- Observaciones (periodo column + area) ------------------------------
+  // ---- Observaciones (periodo column + area, fills down to the footer) ----
+  const footY = H - 78;
   const obsHeadH = 18;
-  const obsRowH = 34;
+  const obsRows = Math.min(Math.max(periods, 1), 3);
+  const obsRowH = Math.max(34, (footY - 14 - (y + obsHeadH)) / obsRows);
   doc.setDrawColor(BORDER);
   doc.setFillColor(HEAD_BG);
   doc.rect(mx, y, nameCol, obsHeadH, "FD");
@@ -421,18 +425,17 @@ function drawBoleta(doc: jsPDF, group: GroupDoc, student: Student, teacher: stri
   doc.setFontSize(8);
   doc.text("OBSERVACIONES Y SUGERENCIAS SOBRE LOS APRENDIZAJES", mx + nameCol + 8, y + 11);
   y += obsHeadH;
-  for (let p = 0; p < Math.min(periods, 3); p++) {
+  for (let p = 0; p < obsRows; p++) {
     doc.rect(mx, y, nameCol, obsRowH);
     doc.rect(mx + nameCol, y, W - mx * 2 - nameCol, obsRowH);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.5);
     doc.setTextColor(SLATE);
-    doc.text(ORD[p] ?? `P${p + 1}`, mx + nameCol / 2, y + obsRowH / 2 + 3, { align: "center" });
+    doc.text(ORD[p] ?? `P${p + 1}`, mx + nameCol / 2, y + 16, { align: "center" });
     y += obsRowH;
   }
 
   // ---- Footer: firmas + docente/directora --------------------------------
-  const footY = H - 78;
   doc.setDrawColor(BORDER);
   doc.setFillColor(HEAD_BG);
   const firmaX = mx + 250;

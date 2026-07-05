@@ -94,12 +94,20 @@ interface StoreValue {
     rubroIdx: number,
     activity: Activity
   ) => void;
-  removeActivity: (
+  renameActivity: (
     period: number,
     subjectSlug: string,
     rubroIdx: number,
+    globalIndex: number,
     templateCount: number,
-    extraIndex: number
+    name: string
+  ) => void;
+  deleteActivity: (
+    period: number,
+    subjectSlug: string,
+    rubroIdx: number,
+    globalIndex: number,
+    templateCount: number
   ) => void;
   addStudent: (name: string) => void;
   removeStudent: (studentId: number) => void;
@@ -390,25 +398,94 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [patchState]
   );
 
-  const removeActivity = useCallback(
+  const renameActivity = useCallback(
     (
       period: number,
       subjectSlug: string,
       rubroIdx: number,
+      globalIndex: number,
       templateCount: number,
-      extraIndex: number
+      name: string
+    ) =>
+      updateActive((doc) => {
+        if (globalIndex < templateCount) {
+          return {
+            ...doc,
+            subjects: doc.subjects.map((s) =>
+              s.slug !== subjectSlug
+                ? s
+                : {
+                    ...s,
+                    rubros: s.rubros.map((r, i) =>
+                      i !== rubroIdx
+                        ? r
+                        : {
+                            ...r,
+                            activities: r.activities.map((a, ai) =>
+                              ai === globalIndex ? { ...a, name } : a
+                            ),
+                          }
+                    ),
+                  }
+            ),
+          };
+        }
+        const ek = extraKey(period, subjectSlug, rubroIdx);
+        const arr = [...(doc.state.extraActivities[ek] ?? [])];
+        const ei = globalIndex - templateCount;
+        if (ei < 0 || ei >= arr.length) return doc;
+        arr[ei] = { ...arr[ei], name };
+        return {
+          ...doc,
+          state: {
+            ...doc.state,
+            extraActivities: { ...doc.state.extraActivities, [ek]: arr },
+          },
+        };
+      }),
+    [updateActive]
+  );
+
+  const deleteActivity = useCallback(
+    (
+      period: number,
+      subjectSlug: string,
+      rubroIdx: number,
+      globalIndex: number,
+      templateCount: number
     ) =>
       updateActive((doc) => {
         const ek = extraKey(period, subjectSlug, rubroIdx);
-        const arr = [...(doc.state.extraActivities[ek] ?? [])];
-        if (extraIndex < 0 || extraIndex >= arr.length) return doc;
-        arr.splice(extraIndex, 1);
-        const gi = templateCount + extraIndex; // removed global index
-        const oldTotal = templateCount + arr.length + 1;
+        const extra = [...(doc.state.extraActivities[ek] ?? [])];
+        const oldTotal = templateCount + extra.length;
+        if (globalIndex < 0 || globalIndex >= oldTotal) return doc;
+
+        let subjects = doc.subjects;
+        const nextExtra = { ...doc.state.extraActivities };
+        if (globalIndex < templateCount) {
+          // Remove a template activity from this subject only.
+          subjects = doc.subjects.map((s) =>
+            s.slug !== subjectSlug
+              ? s
+              : {
+                  ...s,
+                  rubros: s.rubros.map((r, i) =>
+                    i !== rubroIdx
+                      ? r
+                      : { ...r, activities: r.activities.filter((_, ai) => ai !== globalIndex) }
+                  ),
+                }
+          );
+        } else {
+          extra.splice(globalIndex - templateCount, 1);
+          nextExtra[ek] = extra;
+        }
+
+        // Reindex cells/notes for activity indices above the removed one.
         const cells = { ...doc.state.cells };
         const notes = { ...doc.state.notes };
         for (const st of doc.students) {
-          for (let ai = gi; ai < oldTotal - 1; ai++) {
+          for (let ai = globalIndex; ai < oldTotal - 1; ai++) {
             const cur = cellKey(period, subjectSlug, rubroIdx, ai, st.id);
             const nxt = cellKey(period, subjectSlug, rubroIdx, ai + 1, st.id);
             if (nxt in cells) cells[cur] = cells[nxt];
@@ -422,12 +499,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         }
         return {
           ...doc,
-          state: {
-            ...doc.state,
-            extraActivities: { ...doc.state.extraActivities, [ek]: arr },
-            cells,
-            notes,
-          },
+          subjects,
+          state: { ...doc.state, extraActivities: nextExtra, cells, notes },
         };
       }),
     [updateActive]
@@ -631,7 +704,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setAcierto,
       setOverride,
       addActivity,
-      removeActivity,
+      renameActivity,
+      deleteActivity,
       addStudent,
       removeStudent,
       renameStudent,
@@ -667,7 +741,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setAcierto,
       setOverride,
       addActivity,
-      removeActivity,
+      renameActivity,
+      deleteActivity,
       addStudent,
       removeStudent,
       renameStudent,
@@ -732,7 +807,8 @@ export function useGroup() {
     setAcierto: s.setAcierto,
     setOverride: s.setOverride,
     addActivity: s.addActivity,
-    removeActivity: s.removeActivity,
+    renameActivity: s.renameActivity,
+    deleteActivity: s.deleteActivity,
     addStudent: s.addStudent,
     removeStudent: s.removeStudent,
     renameStudent: s.renameStudent,

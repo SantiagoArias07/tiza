@@ -52,6 +52,8 @@ export default function MateriaPage() {
   const [newOpen, setNewOpen] = useState(false);
   const [editing, setEditing] = useState<{ ri: number; sid: number } | null>(null);
   const [editVal, setEditVal] = useState("");
+  const [actEdit, setActEdit] = useState<{ ri: number; ai: number } | null>(null);
+  const [actVal, setActVal] = useState("");
 
   const s = subject!;
   const base = `/grupo/${data.id}`;
@@ -154,28 +156,47 @@ export default function MateriaPage() {
                       <tr>
                         <th className={styles.nameHead}>Alumno</th>
                         {acts(ri).map((a, ai) => {
-                          const isExtra = ai >= templateCount(ri);
+                          const isEditingAct = actEdit?.ri === ri && actEdit?.ai === ai;
+                          const commitAct = () => {
+                            if (actVal.trim())
+                              g.renameActivity(period, s.slug, ri, ai, templateCount(ri), actVal.trim());
+                            setActEdit(null);
+                          };
                           return (
                             <th key={ai} className={styles.actHead} title={a.name}>
                               <span className={styles.actHeadInner}>
-                                <span className={styles.actName}>{a.name}</span>
-                                {isExtra && (
+                                {isEditingAct ? (
+                                  <input
+                                    className={styles.actEditInput}
+                                    value={actVal}
+                                    autoFocus
+                                    onChange={(e) => setActVal(e.target.value)}
+                                    onBlur={commitAct}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter" || e.key === "Escape") commitAct();
+                                    }}
+                                  />
+                                ) : (
                                   <button
-                                    className={styles.delAct}
-                                    title="Eliminar actividad"
-                                    onClick={() =>
-                                      g.removeActivity(
-                                        period,
-                                        s.slug,
-                                        ri,
-                                        templateCount(ri),
-                                        ai - templateCount(ri)
-                                      )
-                                    }
+                                    className={styles.actNameBtn}
+                                    title="Renombrar actividad"
+                                    onClick={() => {
+                                      setActEdit({ ri, ai });
+                                      setActVal(a.name);
+                                    }}
                                   >
-                                    <XIcon size={11} />
+                                    {a.name}
                                   </button>
                                 )}
+                                <button
+                                  className={styles.delAct}
+                                  title="Eliminar actividad"
+                                  onClick={() =>
+                                    g.deleteActivity(period, s.slug, ri, ai, templateCount(ri))
+                                  }
+                                >
+                                  <XIcon size={11} />
+                                </button>
                               </span>
                             </th>
                           );
