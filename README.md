@@ -36,7 +36,10 @@ and generates the official **SEP evaluation report** and an internal
 - **PDF reports** — official SEP boleta (portrait) and a landscape concentrado,
   both filled with real grades and configurable rounding.
 - **Automatic daily backups** — a point‑in‑time snapshot of every group is stored
-  each day (last 7 kept), downloadable and restorable.
+  each day (last 7 kept), downloadable and restorable, and optionally mirrored
+  off‑database to a **private GitHub repo**.
+- **Installable PWA** — add to home screen on Android/iOS and desktop; runs
+  standalone with an app icon and works offline for cached views.
 - **Offline‑resilient** — the app keeps working from `localStorage` if the API is
   briefly unreachable, then re‑syncs.
 - **Responsive** — works on desktop and mobile (collapsible sidebar).
@@ -106,13 +109,33 @@ NEXT_PUBLIC_API_URL=http://localhost:4000
 ### Backend — Render
 
 1. **New → Blueprint** and connect the repo. `render.yaml` provisions the web
-   service (`rootDir: server`), a free **PostgreSQL** instance and a generated
-   `JWT_SECRET`.
+   service (`rootDir: server`) and a generated `JWT_SECRET`.
 2. Verify `https://<your-backend>.onrender.com/api/health` returns
    `{"ok":true,"store":"postgres"}`.
 
-> If `store` says `file`, data is ephemeral. Create a Postgres instance and set
-> `DATABASE_URL` (plus `JWT_SECRET`) on the service.
+### Database — Neon (free, no expiry)
+
+Render's free Postgres is deleted after a trial window. Use **Neon** instead —
+a free serverless Postgres with **no forced deletion** (idle projects are
+suspended, not deleted) and a drop‑in connection string:
+
+1. Create a project at [neon.com](https://neon.com) (no card required).
+2. Copy the **pooled** connection string (host contains `-pooler`).
+3. On the Render service, set `DATABASE_URL` to it and redeploy.
+
+No code changes — Tiza connects with `pg` over SSL. Alternative with the same
+"free, no‑expiry" property: **Aiven for PostgreSQL** (1 GB, includes backups).
+
+### Off‑database backup — private GitHub repo (optional)
+
+For an extra copy outside the database, set two env vars on the backend and a
+daily snapshot is committed to a **private** repo (git keeps history):
+
+- `GITHUB_BACKUP_REPO` = `owner/tiza-backups` (create it **private**)
+- `GITHUB_BACKUP_TOKEN` = a fine‑grained PAT scoped to that repo,
+  Contents: Read + Write
+
+> Use a private **repo**, not a Gist — Gists are readable by anyone with the URL.
 
 ### Frontend — Vercel
 
@@ -128,6 +151,8 @@ NEXT_PUBLIC_API_URL=http://localhost:4000
 | Backend  | `DATABASE_URL`        | Postgres connection (blank → JSON file)  |
 | Backend  | `JWT_SECRET`          | Signs session tokens                     |
 | Backend  | `CORS_ORIGIN`         | Allowed frontend origin(s)               |
+| Backend  | `GITHUB_BACKUP_REPO`  | Optional: `owner/repo` (private) mirror  |
+| Backend  | `GITHUB_BACKUP_TOKEN` | Optional: fine‑grained PAT (Contents R/W)|
 
 ---
 

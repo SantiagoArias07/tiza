@@ -1,5 +1,8 @@
-# Render Blueprint — deploys the Tiza backend + a free Postgres database.
-# In Render: New → Blueprint → connect this repo. Render reads this file.
+# Render Blueprint — deploys the Tiza backend (web service only).
+# The database is a FREE, no-expiry Neon Postgres (https://neon.com): create a
+# project there and paste its POOLED connection string into DATABASE_URL below
+# (Render will prompt for it because sync is false). This avoids Render's free
+# Postgres, which is deleted after a trial window.
 services:
   - type: web
     name: tiza-server
@@ -10,18 +13,17 @@ services:
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
+      # Neon pooled connection string (host contains "-pooler"). Set in dashboard.
       - key: DATABASE_URL
-        fromDatabase:
-          name: tiza-db
-          property: connectionString
+        sync: false
       # Secret for signing login tokens — Render generates a random value.
       - key: JWT_SECRET
         generateValue: true
-      # After deploying the frontend, set this to your Vercel URL
-      # (e.g. https://tiza.vercel.app) so the browser is allowed to call the API.
+      # Set to your Vercel URL (e.g. https://tiza.vercel.app) after deploying it.
       - key: CORS_ORIGIN
         value: "*"
-
-databases:
-  - name: tiza-db
-    plan: free
+      # Optional off-database backup to a PRIVATE GitHub repo (set in dashboard).
+      - key: GITHUB_BACKUP_REPO
+        sync: false
+      - key: GITHUB_BACKUP_TOKEN
+        sync: false

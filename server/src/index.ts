@@ -11,6 +11,7 @@ import {
 } from "./auth";
 import { newGroup, seedDemoGroup } from "./seed";
 import { computeMetrics } from "./metrics";
+import { githubBackupEnabled, pushBackup } from "./githubBackup";
 import { GroupDoc, GroupMeta, User, UserRecord, emptyState } from "./types";
 
 /** Fill any fields missing from older saved docs so nothing reads undefined. */
@@ -62,7 +63,7 @@ const publicUser = (u: UserRecord): User => ({
 // ---- Health --------------------------------------------------------------
 app.get("/", (_req, res) => res.json({ name: "tiza-server", ok: true }));
 app.get("/api/health", (_req, res) =>
-  res.json({ ok: true, store: store.kind })
+  res.json({ ok: true, store: store.kind, githubBackup: githubBackupEnabled })
 );
 
 // ---- Auth ----------------------------------------------------------------
@@ -126,13 +127,19 @@ app.get("/api/me", requireAuth, async (req: AuthedRequest, res) => {
 });
 
 // ---- Groups --------------------------------------------------------------
-/** Once-per-day automatic snapshot of all the user's groups (keeps 7 days). */
+/** Once-per-day automatic snapshot of all the user's groups (keeps 7 days),
+    mirrored to a private GitHub repo when configured. */
 async function snapshotIfNeeded(userId: string) {
   const day = new Date().toISOString().slice(0, 10);
   if (await store.hasBackup(userId, day)) return;
   const groups = await store.listGroups(userId);
-  await store.addBackup(userId, day, { day, groups });
+  const snapshot = { day, groups };
+  await store.addBackup(userId, day, snapshot);
   await store.pruneBackups(userId, 7);
+  // Off-database mirror (best-effort, non-fatal).
+  await pushBackup(userId, snapshot).catch((e) =>
+    console.error("github backup failed", e.message)
+  );
 }
 
 app.get("/api/groups", requireAuth, async (req: AuthedRequest, res) => {

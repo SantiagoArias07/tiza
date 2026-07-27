@@ -10,12 +10,14 @@ import {
   downloadGroupBoletas,
 } from "@/lib/export";
 import { Modal } from "./ui";
+import { useConfirm } from "./ConfirmDialog";
 import { FileTextIcon, XIcon } from "./icons";
 import styles from "./BackupModal.module.css";
 
 export function BackupModal({ onClose }: { onClose: () => void }) {
   const { activeGroup, refreshGroups } = useStore();
   const { user } = useAuth();
+  const confirm = useConfirm();
   const [backups, setBackups] = useState<{ day: string; createdAt: number }[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -33,8 +35,13 @@ export function BackupModal({ onClose }: { onClose: () => void }) {
   }
 
   async function restore(day: string) {
-    if (!window.confirm(`Restaurar el respaldo del ${day}? Se reemplazan TODOS tus grupos con ese día.`))
-      return;
+    const ok = await confirm({
+      title: `¿Restaurar el respaldo del ${day}?`,
+      message: "Se reemplazan TODOS tus grupos con el estado de ese día.",
+      confirmText: "Restaurar",
+      danger: true,
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await api.restoreBackup(day);

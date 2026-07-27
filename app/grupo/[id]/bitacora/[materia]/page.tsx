@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { notFound, useParams } from "next/navigation";
 import { useGroup } from "@/lib/store";
+import { useConfirm } from "@/components/ConfirmDialog";
 import {
   cellKey,
   examAciertoKey,
@@ -39,6 +40,7 @@ interface PopState {
 
 export default function MateriaPage() {
   const g = useGroup();
+  const confirm = useConfirm();
   const { data, notes, setNote, cycleCell } = g;
   const period = g.activePeriod;
   const params = useParams<{ materia: string }>();
@@ -186,11 +188,15 @@ export default function MateriaPage() {
                               <button
                                 className={styles.delAct}
                                 title="Eliminar actividad"
-                                onClick={() => {
+                                onClick={async () => {
                                   if (
-                                    window.confirm(
-                                      `¿Eliminar la actividad "${a.name}"? Se borrarán sus registros de este periodo.`
-                                    )
+                                    await confirm({
+                                      title: `¿Eliminar "${a.name}"?`,
+                                      message:
+                                        "Se borrarán sus registros de este periodo. No se puede deshacer.",
+                                      confirmText: "Eliminar",
+                                      danger: true,
+                                    })
                                   )
                                     g.deleteActivity(period, s.slug, ri, ai);
                                 }}

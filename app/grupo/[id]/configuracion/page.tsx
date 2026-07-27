@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useGroup, useStore } from "@/lib/store";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { PageHeader } from "@/components/ui";
 import { PlusIcon, TrashIcon } from "@/components/icons";
 import styles from "./configuracion.module.css";
@@ -29,6 +30,7 @@ export default function ConfiguracionPage() {
     removeSubject,
   } = useGroup();
   const { deleteGroup } = useStore();
+  const confirm = useConfirm();
   const router = useRouter();
 
   const [newStudent, setNewStudent] = useState("");
@@ -172,11 +174,14 @@ export default function ConfiguracionPage() {
                 className={styles.removeBtn}
                 title="Quitar criterio"
                 disabled={rubros.length <= 1}
-                onClick={() => {
+                onClick={async () => {
                   if (
-                    window.confirm(
-                      `¿Quitar el criterio "${r.name}"? Se borran sus registros en todas las materias.`
-                    )
+                    await confirm({
+                      title: `¿Quitar el criterio "${r.name}"?`,
+                      message: "Se borran sus registros en todas las materias.",
+                      confirmText: "Quitar",
+                      danger: true,
+                    })
                   )
                     removeRubro(i);
                 }}
@@ -277,11 +282,14 @@ export default function ConfiguracionPage() {
                 className={styles.removeBtn}
                 title="Quitar materia"
                 disabled={data.subjects.length <= 1}
-                onClick={() => {
+                onClick={async () => {
                   if (
-                    window.confirm(
-                      `¿Quitar la materia "${s.name}"? Se borran sus calificaciones.`
-                    )
+                    await confirm({
+                      title: `¿Quitar la materia "${s.name}"?`,
+                      message: "Se borran sus calificaciones. No se puede deshacer.",
+                      confirmText: "Quitar",
+                      danger: true,
+                    })
                   )
                     removeSubject(s.slug);
                 }}
