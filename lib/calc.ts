@@ -4,7 +4,9 @@ import {
   examAciertoKey,
   examTotalKey,
   extraKey,
+  overrideFinalCycleKey,
   overrideRubroKey,
+  overrideSubjectCycleKey,
   overrideSubjectKey,
 } from "./data";
 import type { Activity, AttStatus, GroupDoc, Subject } from "./types";
@@ -142,9 +144,12 @@ export function roundFinal(doc: GroupDoc, v: number): number {
   const mode = doc.rounding ?? "half";
   const floor = Math.floor(v);
   const frac = v - floor;
+  // Epsilon so a value that is really 7.6 but lands at 7.5999999 after float
+  // sums still rounds up (fixes "el .6 no sube" in the concentrado).
+  const EPS = 1e-9;
   if (mode === "none") return floor;
-  if (mode === "sixty") return floor + (frac >= 0.6 ? 1 : 0);
-  return floor + (frac >= 0.5 ? 1 : 0); // half
+  if (mode === "sixty") return floor + (frac >= 0.6 - EPS ? 1 : 0);
+  return floor + (frac >= 0.5 - EPS ? 1 : 0); // half
 }
 
 /** Average rubro score across students, for one period. */
@@ -222,8 +227,8 @@ export function subjectIsOverridden(
 
 const periods = (doc: GroupDoc) => Math.max(1, doc.periodCount || 1);
 
-/** Subject grade across the whole cycle (average of periods). */
-export function subjectGradeCycle(
+/** Subject grade across the whole cycle (average of periods), ignoring override. */
+export function subjectGradeCycleCalculated(
   doc: GroupDoc,
   subject: Subject,
   studentId: number
@@ -234,10 +239,51 @@ export function subjectGradeCycle(
   return sum / n;
 }
 
-export function studentAverageCycle(doc: GroupDoc, studentId: number): number {
+/** Subject grade across the whole cycle, honoring a manual final override. */
+export function subjectGradeCycle(
+  doc: GroupDoc,
+  subject: Subject,
+  studentId: number
+): number {
+  const ov =
+    doc.state.overrides[overrideSubjectCycleKey(subject.slug, studentId)];
+  if (typeof ov === "number") return ov;
+  return subjectGradeCycleCalculated(doc, subject, studentId);
+}
+
+export function subjectCycleIsOverridden(
+  doc: GroupDoc,
+  subject: Subject,
+  studentId: number
+): boolean {
+  return (
+    typeof doc.state.overrides[
+      overrideSubjectCycleKey(subject.slug, studentId)
+    ] === "number"
+  );
+}
+
+/** Overall cycle average, ignoring the final-average override. */
+export function studentAverageCycleCalculated(
+  doc: GroupDoc,
+  studentId: number
+): number {
   if (!doc.subjects.length) return 0;
   const grades = doc.subjects.map((s) => subjectGradeCycle(doc, s, studentId));
   return grades.reduce((a, b) => a + b, 0) / grades.length;
+}
+
+export function studentAverageCycle(doc: GroupDoc, studentId: number): number {
+  const ov = doc.state.overrides[overrideFinalCycleKey(studentId)];
+  if (typeof ov === "number") return ov;
+  return studentAverageCycleCalculated(doc, studentId);
+}
+
+export function finalCycleIsOverridden(
+  doc: GroupDoc,
+  studentId: number
+): boolean {
+  return typeof doc.state.overrides[overrideFinalCycleKey(studentId)] === "number";
 }
 
 export function isAtRisk(doc: GroupDoc, studentId: number): boolean {

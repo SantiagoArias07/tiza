@@ -54,6 +54,10 @@ export interface GroupState {
   /** days where lista was taken, key `${period}-${day}` */
   attDays: Record<string, boolean>;
   privNotes: Record<string, string>;
+  /** observations per period+subject+student, key `${period}-${slug}-${studentId}` (printed on the boleta) */
+  subjectNotes: Record<string, string>;
+  /** notes attached to an edited final grade, key = same as its override key (sc-…/fc-…) */
+  gradeNotes: Record<string, string>;
   crit: number[];
   umbral: number;
   /** legacy: extra activities added on top of the template (read-only compat) */
@@ -103,6 +107,8 @@ export function emptyState(): GroupState {
     attendance: {},
     attDays: {},
     privNotes: {},
+    subjectNotes: {},
+    gradeNotes: {},
     crit: [40, 20, 40],
     umbral: 3,
     extraActivities: {},

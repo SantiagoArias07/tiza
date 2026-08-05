@@ -81,6 +81,13 @@ interface StoreValue {
   ) => void;
   registerDay: (period: number, day: string) => void;
   setPrivNote: (studentId: number, text: string) => void;
+  setSubjectNote: (
+    period: number,
+    subjectSlug: string,
+    studentId: number,
+    text: string
+  ) => void;
+  setGradeNote: (key: string, text: string) => void;
   setCrit: (next: number[]) => void;
   setUmbral: (n: number) => void;
   setRounding: (mode: RoundingMode) => void;
@@ -343,6 +350,29 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         ...s,
         privNotes: { ...s.privNotes, [studentId]: text },
       })),
+    [patchState]
+  );
+
+  const setSubjectNote = useCallback(
+    (period: number, subjectSlug: string, studentId: number, text: string) =>
+      patchState((s) => {
+        const key = `${period}-${subjectSlug}-${studentId}`;
+        const subjectNotes = { ...s.subjectNotes };
+        if (text.trim()) subjectNotes[key] = text;
+        else delete subjectNotes[key];
+        return { ...s, subjectNotes };
+      }),
+    [patchState]
+  );
+
+  const setGradeNote = useCallback(
+    (key: string, text: string) =>
+      patchState((s) => {
+        const gradeNotes = { ...s.gradeNotes };
+        if (text.trim()) gradeNotes[key] = text;
+        else delete gradeNotes[key];
+        return { ...s, gradeNotes };
+      }),
     [patchState]
   );
 
@@ -654,6 +684,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       markAttendance,
       registerDay,
       setPrivNote,
+      setSubjectNote,
+      setGradeNote,
       setCrit,
       setUmbral,
       setRounding,
@@ -691,6 +723,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       markAttendance,
       registerDay,
       setPrivNote,
+      setSubjectNote,
+      setGradeNote,
       setCrit,
       setUmbral,
       setRounding,
@@ -747,6 +781,7 @@ export function useGroup() {
     notes: data.state.notes,
     attendance: data.state.attendance,
     privNotes: data.state.privNotes,
+    subjectNotes: data.state.subjectNotes,
     crit: data.state.crit,
     umbral: data.state.umbral,
     extraActivities: data.state.extraActivities,
@@ -757,6 +792,8 @@ export function useGroup() {
     markAttendance: s.markAttendance,
     registerDay: s.registerDay,
     setPrivNote: s.setPrivNote,
+    setSubjectNote: s.setSubjectNote,
+    setGradeNote: s.setGradeNote,
     setCrit: s.setCrit,
     setUmbral: s.setUmbral,
     setRounding: s.setRounding,

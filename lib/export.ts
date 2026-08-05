@@ -254,7 +254,7 @@ function drawBoleta(doc: jsPDF, group: GroupDoc, student: Student, teacher: stri
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6);
   doc.setTextColor(MUTED);
-  doc.text("Secretaría de Educación", mx + 150, y + 8);
+  doc.text("Secretaría de Educación de Veracruz", mx + 150, y + 8);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8.5);
@@ -437,13 +437,36 @@ function drawBoleta(doc: jsPDF, group: GroupDoc, student: Student, teacher: stri
   doc.setFontSize(8);
   doc.text("OBSERVACIONES Y SUGERENCIAS SOBRE LOS APRENDIZAJES", mx + nameCol + 8, y + 11);
   y += obsHeadH;
+  const obsTextX = mx + nameCol + 8;
+  const obsTextW = W - mx * 2 - nameCol - 16;
+  const obsLineH = 8.5;
   for (let p = 0; p < obsRows; p++) {
-    doc.rect(mx, y, nameCol, obsRowH);
-    doc.rect(mx + nameCol, y, W - mx * 2 - nameCol, obsRowH);
+    const rowTop = y;
+    doc.rect(mx, rowTop, nameCol, obsRowH);
+    doc.rect(mx + nameCol, rowTop, W - mx * 2 - nameCol, obsRowH);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.5);
     doc.setTextColor(SLATE);
-    doc.text(ORD[p] ?? `P${p + 1}`, mx + nameCol / 2, y + 16, { align: "center" });
+    doc.text(ORD[p] ?? `P${p + 1}`, mx + nameCol / 2, rowTop + 16, { align: "center" });
+
+    // Fill the area with the student's per-subject notes for this period,
+    // "Materia: nota", up to 2 lines each, clamped so it never overflows.
+    const maxLines = Math.max(1, Math.floor((obsRowH - 12) / obsLineH));
+    let used = 0;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(INK);
+    for (const c of campos) {
+      if (used >= maxLines) break;
+      const note = (group.state.subjectNotes?.[`${p}-${c.slug}-${student.id}`] ?? "").trim();
+      if (!note) continue;
+      const lines = doc.splitTextToSize(`${c.name}: ${note}`, obsTextW) as string[];
+      const allow = Math.min(lines.length, 2, maxLines - used);
+      for (let li = 0; li < allow; li++) {
+        doc.text(lines[li], obsTextX, rowTop + 12 + used * obsLineH);
+        used++;
+      }
+    }
     y += obsRowH;
   }
 

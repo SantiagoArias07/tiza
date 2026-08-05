@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { notFound, useParams } from "next/navigation";
 import { useGroup } from "@/lib/store";
 import { useAuth } from "@/lib/auth";
@@ -10,16 +11,26 @@ import {
   subjectGrade,
   subjectGradeCycle,
 } from "@/lib/calc";
+import { subjectNoteKey } from "@/lib/data";
 import { downloadStudentBoleta, downloadStudentConcentrado } from "@/lib/export";
+import { PeriodTabs } from "@/components/PeriodTabs";
 import { FileTextIcon } from "@/components/icons";
 import styles from "./alumno.module.css";
 
 export default function AlumnoPage() {
-  const { data, privNotes, setPrivNote, periodCount } = useGroup();
+  const { data, subjectNotes, setSubjectNote, periodCount } = useGroup();
   const { user } = useAuth();
   const teacher = user?.name ?? "Docente";
   const params = useParams<{ alumnoId: string }>();
   const student = data.students.find((s) => String(s.id) === params.alumnoId);
+
+  // Notes card: selected period tab + subject combobox.
+  const [notePeriod, setNotePeriod] = useState(0);
+  const [noteSlug, setNoteSlug] = useState(data.subjects[0]?.slug ?? "");
+  const activeSlug = data.subjects.some((s) => s.slug === noteSlug)
+    ? noteSlug
+    : data.subjects[0]?.slug ?? "";
+
   if (!student) notFound();
 
   const risk = isAtRisk(data, student!.id);
@@ -132,14 +143,47 @@ export default function AlumnoPage() {
           </div>
 
           <div className={styles.card}>
-            <h2 className={styles.cardTitle}>Notas privadas</h2>
-            <p className={styles.privHint}>Solo para ti.</p>
-            <textarea
-              className={styles.privArea}
-              value={privNotes[student!.id] ?? ""}
-              placeholder="Observaciones sobre el alumno…"
-              onChange={(e) => setPrivNote(student!.id, e.target.value)}
-            />
+            <h2 className={styles.cardTitle}>Observaciones por materia</h2>
+            <p className={styles.privHint}>
+              Se imprimen en la boleta oficial, por periodo.
+            </p>
+            {data.subjects.length === 0 ? (
+              <p className={styles.noteEmpty}>
+                Agrega materias en Configuración para escribir observaciones.
+              </p>
+            ) : (
+              <>
+                <PeriodTabs
+                  count={periodCount}
+                  active={notePeriod}
+                  onChange={setNotePeriod}
+                />
+                <select
+                  className={styles.noteSelect}
+                  value={activeSlug}
+                  onChange={(e) => setNoteSlug(e.target.value)}
+                >
+                  {data.subjects.map((s) => (
+                    <option key={s.slug} value={s.slug}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+                <textarea
+                  key={`${notePeriod}-${activeSlug}`}
+                  className={styles.privArea}
+                  value={
+                    subjectNotes[
+                      subjectNoteKey(notePeriod, activeSlug, student!.id)
+                    ] ?? ""
+                  }
+                  placeholder={`Observaciones y sugerencias · Periodo ${notePeriod + 1}…`}
+                  onChange={(e) =>
+                    setSubjectNote(notePeriod, activeSlug, student!.id, e.target.value)
+                  }
+                />
+              </>
+            )}
           </div>
         </section>
       </div>

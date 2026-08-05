@@ -27,6 +27,15 @@ export function examAciertoKey(
   return `${period}-${subjectSlug}-${studentId}`;
 }
 
+/** Per-period, per-subject observation note for a student. */
+export function subjectNoteKey(
+  period: number,
+  subjectSlug: string,
+  studentId: number
+) {
+  return `${period}-${subjectSlug}-${studentId}`;
+}
+
 /** Manual override key at rubro level. */
 export function overrideRubroKey(
   period: number,
@@ -44,6 +53,16 @@ export function overrideSubjectKey(
   studentId: number
 ) {
   return `s-${period}-${subjectSlug}-${studentId}`;
+}
+
+/** Cycle-level (all periods) override of a subject's final grade. */
+export function overrideSubjectCycleKey(subjectSlug: string, studentId: number) {
+  return `sc-${subjectSlug}-${studentId}`;
+}
+
+/** Cycle-level override of a student's overall final average. */
+export function overrideFinalCycleKey(studentId: number) {
+  return `fc-${studentId}`;
 }
 
 /** Points awarded per cell status. */

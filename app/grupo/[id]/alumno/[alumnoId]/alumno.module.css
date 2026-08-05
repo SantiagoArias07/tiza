@@ -221,6 +221,28 @@
   color: var(--faint);
   margin-bottom: 12px;
 }
+.noteSelect {
+  width: 100%;
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--slate);
+  cursor: pointer;
+  transition: border-color 0.12s;
+}
+.noteSelect:focus {
+  border-color: #41607b;
+}
+.noteEmpty {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+  padding: 8px 0;
+}
 .privArea {
   width: 100%;
   min-height: 120px;
