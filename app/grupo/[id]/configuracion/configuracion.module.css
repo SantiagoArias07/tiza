@@ -333,6 +333,24 @@
   }
 }
 
+@media (max-width: 520px) {
+  .card {
+    padding: 18px 16px;
+  }
+  /* Stack the "Agregar" button under its input so it never overflows. */
+  .addRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .addBtn {
+    justify-content: center;
+  }
+  /* Keep the delete confirm actions from overflowing. */
+  .confirmRow {
+    flex-wrap: wrap;
+  }
+}
+
 .critInput {
   flex: 1;
   padding: 8px 11px;

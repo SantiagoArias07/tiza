@@ -38,6 +38,9 @@ interface PopState {
   anchor: DOMRect;
 }
 
+/** Activities shown per page in a rubro table (paginated when there are more). */
+const ACTS_PER_PAGE = 10;
+
 export default function MateriaPage() {
   const g = useGroup();
   const confirm = useConfirm();
@@ -56,12 +59,16 @@ export default function MateriaPage() {
   const [editVal, setEditVal] = useState("");
   const [actEdit, setActEdit] = useState<{ ri: number; ai: number } | null>(null);
   const [actVal, setActVal] = useState("");
+  // Current page per rubro index (for the activity pagination).
+  const [actPage, setActPage] = useState<Record<number, number>>({});
 
   const s = subject!;
   const base = `/grupo/${data.id}`;
 
   // Activity list for a rubro in the active period (independent per period).
   const acts = (ri: number) => activitiesFor(data, period, s, ri);
+  const setRubroPage = (ri: number, p: number) =>
+    setActPage((prev) => ({ ...prev, [ri]: p }));
 
   const toggle = (i: number) =>
     setExpanded((prev) => prev.map((v, idx) => (idx === i ? !v : v)));
@@ -123,6 +130,14 @@ export default function MateriaPage() {
           const avg = rubroAverage(data, s, ri, period);
           const isExam = rubro.kind === "exam";
           const pct = Math.round(rubroWeightPct(data, ri));
+          // Pagination for this rubro's activities.
+          const allActs = acts(ri);
+          const pageCount = Math.max(1, Math.ceil(allActs.length / ACTS_PER_PAGE));
+          const page = Math.min(actPage[ri] ?? 0, pageCount - 1);
+          const startIdx = page * ACTS_PER_PAGE;
+          const pageActs = allActs
+            .slice(startIdx, startIdx + ACTS_PER_PAGE)
+            .map((a, i) => ({ a, ai: startIdx + i }));
           return (
             <section key={ri} className={styles.rubro}>
               <button className={styles.rubroHead} onClick={() => toggle(ri)}>
@@ -148,12 +163,13 @@ export default function MateriaPage() {
               )}
 
               {open && !isExam && (
+                <>
                 <div className={styles.tableWrap}>
                   <table className={styles.table}>
                     <thead>
                       <tr>
                         <th className={styles.nameHead}>Alumno</th>
-                        {acts(ri).map((a, ai) => {
+                        {pageActs.map(({ a, ai }) => {
                           const isEditingAct = actEdit?.ri === ri && actEdit?.ai === ai;
                           const commitAct = () => {
                             if (actVal.trim())
@@ -222,7 +238,7 @@ export default function MateriaPage() {
                             <td className={styles.nameCell} title={student.name}>
                               {student.name}
                             </td>
-                            {acts(ri).map((_, ai) => {
+                            {pageActs.map(({ ai }) => {
                               const key = cellKey(period, s.slug, ri, ai, student.id);
                               const status = g.cells[key] ?? "complete";
                               return (
@@ -260,7 +276,7 @@ export default function MateriaPage() {
                     <tfoot>
                       <tr>
                         <td className={styles.footLabel}>Promedio actividad</td>
-                        {acts(ri).map((_, ai) => (
+                        {pageActs.map(({ ai }) => (
                           <td key={ai} className={`${styles.footAvg} tabular`}>
                             {fmt(activityAverage(data, s, ri, ai, period))}
                           </td>
@@ -270,6 +286,41 @@ export default function MateriaPage() {
                     </tfoot>
                   </table>
                 </div>
+                {pageCount > 1 && (
+                  <div className={styles.pager}>
+                    <button
+                      className={styles.pagerNav}
+                      disabled={page === 0}
+                      onClick={() => setRubroPage(ri, page - 1)}
+                      aria-label="Página anterior"
+                    >
+                      ‹
+                    </button>
+                    {Array.from({ length: pageCount }).map((_, i) => (
+                      <button
+                        key={i}
+                        className={styles.pageNum}
+                        data-active={i === page}
+                        onClick={() => setRubroPage(ri, i)}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                    <button
+                      className={styles.pagerNav}
+                      disabled={page === pageCount - 1}
+                      onClick={() => setRubroPage(ri, page + 1)}
+                      aria-label="Página siguiente"
+                    >
+                      ›
+                    </button>
+                    <span className={styles.pagerInfo}>
+                      {startIdx + 1}–{Math.min(startIdx + ACTS_PER_PAGE, allActs.length)} de{" "}
+                      {allActs.length}
+                    </span>
+                  </div>
+                )}
+                </>
               )}
             </section>
           );
@@ -295,6 +346,9 @@ export default function MateriaPage() {
           onCreate={(rubroIdx, name) => {
             g.addActivity(period, s.slug, rubroIdx, { name, date: "2026-02-16" });
             setExpanded((prev) => prev.map((v, i) => (i === rubroIdx ? true : v)));
+            // Jump to the page that will hold the newly appended activity.
+            const newCount = acts(rubroIdx).length + 1;
+            setRubroPage(rubroIdx, Math.ceil(newCount / ACTS_PER_PAGE) - 1);
             setNewOpen(false);
           }}
         />

@@ -15,6 +15,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  flex-wrap: wrap;
 }
 .title {
   font-size: 24px;
@@ -49,6 +50,7 @@
   display: flex;
   align-items: center;
   gap: 20px;
+  flex-wrap: wrap;
   margin: 22px 0 16px;
   padding: 12px 16px;
   background: var(--bg-card);
@@ -385,6 +387,52 @@
 .aciertoInput:focus {
   border-color: #41607b;
   background: var(--bg-card);
+}
+
+/* Pagination (many activities in one rubro) */
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-3);
+  background: var(--bg-subtle);
+}
+.pagerNav,
+.pageNum {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-3);
+  background: var(--bg-card);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--slate);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.pagerNav:hover:not(:disabled),
+.pageNum:hover {
+  background: var(--bg-subtle-2);
+}
+.pagerNav:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.pageNum[data-active="true"] {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.pagerInfo {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
 }
 
 .table tfoot td {

@@ -15,6 +15,9 @@
   display: flex;
   flex-direction: column;
   padding: 18px 14px 14px;
+  /* Scroll within the sidebar so the user/logout row is always reachable,
+     even on short screens or when the drawer is open on mobile. */
+  overflow-y: auto;
 }
 
 .brand {
@@ -124,6 +127,7 @@
 }
 
 .backup {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 11px;
@@ -168,6 +172,7 @@
 }
 
 .user {
+  flex: none;
   margin-top: 10px;
   padding: 10px 8px 4px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
